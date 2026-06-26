@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI-ISP</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <div class="language-switch">
+        <select id="languageSelect" aria-label="Language">
+          <option value="zh">简体中文</option>
+          <option value="en">English</option>
+          <option value="ja">日本語</option>
+          <option value="es">Español</option>
+        </select>
+      </div>
+
+      <section class="auth-panel" id="authPanel">
+        <div class="auth-copy">
+          <p class="eyebrow">Impulsive Spending Persona</p>
+          <h1 data-i18n="heroTitle">冲动消费用户聊天与画像工作台</h1>
+          <p data-i18n="heroBody">
+            面向存在冲动消费行为的用户，通过对话提取触发因素、情绪状态、购买类别和干预偏好，并汇总共同特征。
+          </p>
+        </div>
+
+        <form class="auth-card" id="authForm">
+          <div class="tabs" role="tablist" aria-label="Auth mode">
+            <button type="button" class="tab active" data-mode="login" data-i18n="login">登录</button>
+            <button type="button" class="tab" data-mode="register" data-i18n="register">注册</button>
+          </div>
+          <label>
+            <span data-i18n="userId">用户 ID</span>
+            <input id="userIdInput" autocomplete="username" placeholder="user_001" required />
+          </label>
+          <label>
+            <span data-i18n="password">密码</span>
+            <input id="passwordInput" type="password" autocomplete="current-password" minlength="4" required />
+          </label>
+          <button class="primary-button" type="submit" id="authSubmit" data-i18n="login">登录</button>
+          <p class="form-message" id="authMessage"></p>
+        </form>
+      </section>
+
+      <section class="workspace hidden" id="workspace">
+        <aside class="sidebar">
+          <div>
+            <p class="eyebrow" data-i18n="currentUser">当前用户</p>
+            <h2 id="currentUser">-</h2>
+          </div>
+          <button class="ghost-button" type="button" id="logoutButton" data-i18n="logout">退出</button>
+
+          <div class="metric-grid">
+            <div>
+              <span data-i18n="riskScore">风险分</span>
+              <strong id="riskScore">0</strong>
+            </div>
+            <div>
+              <span data-i18n="userCount">用户数</span>
+              <strong id="totalUsers">0</strong>
+            </div>
+            <div>
+              <span data-i18n="profileCount">画像数</span>
+              <strong id="profiledUsers">0</strong>
+            </div>
+            <div>
+              <span data-i18n="messageCount">消息数</span>
+              <strong id="totalMessages">0</strong>
+            </div>
+          </div>
+
+          <form class="settings-block" id="aiSettingsForm">
+            <h3 data-i18n="aiSettings">AI 设置</h3>
+            <label>
+              <span data-i18n="requestUrl">请求 URL</span>
+              <input id="requestUrlInput" placeholder="https://api.deepseek.com" />
+            </label>
+            <label>
+              <span data-i18n="model">模型</span>
+              <input id="modelInput" placeholder="deepseek-chat" />
+            </label>
+            <label>
+              <span data-i18n="apiKey">API Key</span>
+              <input id="apiKeyInput" type="text" placeholder="sk-..." autocomplete="off" />
+            </label>
+            <button class="primary-button" type="submit" id="saveAiSettingsButton" data-i18n="saveSettings">
+              保存设置
+            </button>
+            <p class="form-message neutral" id="aiSettingsMessage"></p>
+          </form>
+
+          <div class="profile-block">
+            <h3 data-i18n="userProfile">用户画像</h3>
+            <p id="profileSummary" data-i18n="profilePending">画像将在聊天后生成。</p>
+            <div class="tag-group" id="profileTags"></div>
+          </div>
+        </aside>
+
+        <section class="chat-panel">
+          <header class="panel-header">
+            <div>
+              <p class="eyebrow" data-i18n="conversation">对话</p>
+              <h2 data-i18n="chatTitle">理性消费聊天</h2>
+            </div>
+            <div class="chat-actions">
+              <button class="ghost-button small-button" type="button" id="clearContextButton" data-i18n="clearContext">
+                清除上下文
+              </button>
+              <span class="status-pill" id="aiStatus" data-i18n="checkingAi">检查模型配置中</span>
+            </div>
+          </header>
+
+          <div class="messages" id="messages"></div>
+
+          <form class="composer" id="chatForm">
+            <input type="file" id="fileInput" class="file-input-hidden" accept=".txt,.md,.csv,.json,.xml,.html,.htm,.css,.js,.ts,.jsx,.tsx,.py,.java,.c,.cpp,.h,.hpp,.rs,.go,.rb,.php,.sql,.yaml,.yml,.toml,.ini,.cfg,.log,.env,.sh,.bat,.ps1,.psm1,.tex,.rst,.org,.text" />
+            <div class="composer-row">
+              <textarea id="messageInput" rows="2" maxlength="2000"></textarea>
+              <button type="button" class="attach-button" id="attachButton" title="Attach file" aria-label="Attach a text file">📎</button>
+              <button class="primary-button" type="submit" id="sendButton" data-i18n="send">发送</button>
+            </div>
+            <div class="attachment-area">
+              <div class="attachment-preview hidden" id="attachmentPreview">
+                <span class="attachment-name" id="attachmentName"></span>
+                <button type="button" class="attachment-remove" id="attachmentRemove" title="Remove file" aria-label="Remove attached file">✕</button>
+              </div>
+            </div>
+          </form>
+        </section>
+
+        <aside class="insights-panel">
+          <header class="panel-header compact">
+            <div>
+              <p class="eyebrow" data-i18n="commonFeatures">共同特征</p>
+              <h2 data-i18n="aggregateInsights">聚合洞察</h2>
+            </div>
+          </header>
+          <div class="feature-list" id="featureList"></div>
+        </aside>
+      </section>
+
+      <section class="admin-panel hidden" id="adminPanel">
+        <header class="admin-header">
+          <div>
+            <p class="eyebrow">Impulsive Spending Persona</p>
+            <h1 data-i18n="adminTitle">管理员控制台</h1>
+          </div>
+          <div class="admin-actions">
+            <button class="ghost-button" type="button" id="refreshAdminButton" data-i18n="refresh">刷新</button>
+            <button class="ghost-button" type="button" id="adminLogoutButton" data-i18n="logout">退出</button>
+          </div>
+        </header>
+        <div class="admin-list" id="adminUserList"></div>
+      </section>
+    </main>
+
+    <script src="./script.js" type="module"></script>
+  </body>
+</html>

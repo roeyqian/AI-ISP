@@ -1,0 +1,16 @@
+{
+  "name": "ai-isp-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:migrate:local": "wrangler d1 migrations apply ai-isp-d1 --local",
+    "db:migrate:remote": "wrangler d1 migrations apply ai-isp-d1 --remote",
+    "typecheck": "tsc --project tsconfig.json"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3",
+    "wrangler": "^4.20.5"
+  }
+}
