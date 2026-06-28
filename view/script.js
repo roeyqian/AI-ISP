@@ -1,10 +1,14 @@
 import { I18N } from "./translation.js";
 
+const THEME_STORAGE_KEY = "ai_isp_theme";
+const prefersDarkQuery = window.matchMedia("(prefers-color-scheme: dark)");
+
 const state = {
   mode: "login",
   token: localStorage.getItem("ai_isp_token") || "",
   user: null,
   language: localStorage.getItem("ai_isp_language") || "en",
+  theme: resolveTheme(),
   attachedFile: null,
   lastInsights: null,
   aiConfigured: false,
@@ -17,6 +21,7 @@ const state = {
 
 const elements = {
   languageSelect: document.querySelector("#languageSelect"),
+  themeSelect: document.querySelector("#themeSelect"),
   authPanel: document.querySelector("#authPanel"),
   workspace: document.querySelector("#workspace"),
   adminPanel: document.querySelector("#adminPanel"),
@@ -82,6 +87,8 @@ const elements = {
 };
 
 elements.languageSelect.value = state.language;
+elements.themeSelect.value = state.theme;
+applyTheme();
 applyLanguage();
 
 elements.languageSelect.addEventListener("change", () => {
@@ -89,6 +96,26 @@ elements.languageSelect.addEventListener("change", () => {
   localStorage.setItem("ai_isp_language", state.language);
   applyLanguage();
 });
+
+elements.themeSelect.addEventListener("change", () => {
+  state.theme = elements.themeSelect.value;
+  localStorage.setItem(THEME_STORAGE_KEY, state.theme);
+  applyTheme();
+});
+
+const handleSystemThemeChange = (event) => {
+  const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+  if (savedTheme === "dark" || savedTheme === "light") return;
+  state.theme = event.matches ? "dark" : "light";
+  elements.themeSelect.value = state.theme;
+  applyTheme();
+};
+
+if (typeof prefersDarkQuery.addEventListener === "function") {
+  prefersDarkQuery.addEventListener("change", handleSystemThemeChange);
+} else if (typeof prefersDarkQuery.addListener === "function") {
+  prefersDarkQuery.addListener(handleSystemThemeChange);
+}
 
 document.querySelectorAll(".tab").forEach((button) => {
   button.addEventListener("click", () => {
@@ -1224,6 +1251,17 @@ function applyLanguage() {
   if (state.user?.isAdmin) {
     renderAdminConsole();
   }
+}
+
+function resolveTheme() {
+  const savedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+  if (savedTheme === "dark" || savedTheme === "light") return savedTheme;
+  return prefersDarkQuery.matches ? "dark" : "light";
+}
+
+function applyTheme() {
+  document.documentElement.dataset.theme = state.theme;
+  document.documentElement.style.colorScheme = state.theme;
 }
 
 function t(key) {
