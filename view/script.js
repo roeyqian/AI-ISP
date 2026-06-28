@@ -8,6 +8,11 @@ const state = {
   attachedFile: null,
   lastInsights: null,
   aiConfigured: false,
+  adminUsers: [],
+  adminQuery: "",
+  adminFilter: "all",
+  adminSort: "recent_login",
+  adminSelected: new Set(),
 };
 
 const elements = {
@@ -53,6 +58,21 @@ const elements = {
   aiSettingsMessage: document.querySelector("#aiSettingsMessage"),
   adminLogoutButton: document.querySelector("#adminLogoutButton"),
   refreshAdminButton: document.querySelector("#refreshAdminButton"),
+  adminTotalUsers: document.querySelector("#adminTotalUsers"),
+  adminProfiledUsers: document.querySelector("#adminProfiledUsers"),
+  adminAiConfiguredCount: document.querySelector("#adminAiConfiguredCount"),
+  adminAttentionCount: document.querySelector("#adminAttentionCount"),
+  adminSearchInput: document.querySelector("#adminSearchInput"),
+  adminFilterPills: document.querySelector("#adminFilterPills"),
+  adminSortSelect: document.querySelector("#adminSortSelect"),
+  exportFilteredButton: document.querySelector("#exportFilteredButton"),
+  adminSelectionBar: document.querySelector("#adminSelectionBar"),
+  adminSelectionText: document.querySelector("#adminSelectionText"),
+  selectVisibleButton: document.querySelector("#selectVisibleButton"),
+  clearSelectedProfilesButton: document.querySelector("#clearSelectedProfilesButton"),
+  exportSelectedButton: document.querySelector("#exportSelectedButton"),
+  clearSelectionButton: document.querySelector("#clearSelectionButton"),
+  adminResultsText: document.querySelector("#adminResultsText"),
   adminUserList: document.querySelector("#adminUserList"),
   fileInput: document.querySelector("#fileInput"),
   attachButton: document.querySelector("#attachButton"),
@@ -109,6 +129,39 @@ elements.logoutButton.addEventListener("click", logout);
 elements.adminLogoutButton.addEventListener("click", logout);
 elements.refreshAdminButton.addEventListener("click", loadAdminUsers);
 elements.clearContextButton.addEventListener("click", clearMyContext);
+elements.adminSearchInput.addEventListener("input", () => {
+  state.adminQuery = elements.adminSearchInput.value.trim();
+  renderAdminConsole();
+});
+elements.adminSortSelect.addEventListener("change", () => {
+  state.adminSort = elements.adminSortSelect.value;
+  renderAdminConsole();
+});
+elements.adminFilterPills.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-filter]");
+  if (!button) return;
+  state.adminFilter = button.dataset.filter;
+  renderAdminConsole();
+});
+elements.exportFilteredButton.addEventListener("click", () => exportAdminUsers(getVisibleAdminUsers()));
+elements.selectVisibleButton.addEventListener("click", () => {
+  const users = getVisibleAdminUsers();
+  const allVisibleSelected = users.length > 0 && users.every((user) => state.adminSelected.has(user.id));
+  users.forEach((user) => {
+    if (allVisibleSelected) state.adminSelected.delete(user.id);
+    else state.adminSelected.add(user.id);
+  });
+  renderAdminConsole();
+});
+elements.clearSelectionButton.addEventListener("click", () => {
+  state.adminSelected.clear();
+  renderAdminConsole();
+});
+elements.exportSelectedButton.addEventListener("click", () => {
+  const selected = state.adminUsers.filter((user) => state.adminSelected.has(user.id));
+  exportAdminUsers(selected);
+});
+elements.clearSelectedProfilesButton.addEventListener("click", clearSelectedProfiles);
 
 elements.aiSettingsForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -235,6 +288,11 @@ async function logout() {
   state.user = null;
   state.lastInsights = null;
   state.aiConfigured = false;
+  state.adminUsers = [];
+  state.adminQuery = "";
+  state.adminFilter = "all";
+  state.adminSort = "recent_login";
+  state.adminSelected.clear();
   localStorage.removeItem("ai_isp_token");
   elements.workspace.classList.add("hidden");
   elements.adminPanel.classList.add("hidden");
@@ -295,7 +353,9 @@ async function loadAiSettings() {
 
 async function loadAdminUsers() {
   const result = await api("/admin/users");
-  renderAdminUsers(result.users || []);
+  state.adminUsers = result.users || [];
+  state.adminSelected = new Set([...state.adminSelected].filter((userId) => state.adminUsers.some((user) => user.id === userId)));
+  renderAdminConsole();
 }
 
 function renderAiSettings(settings) {
@@ -745,21 +805,107 @@ function normalizePercent(value) {
   return Math.max(0, Math.min(100, Math.round(number)));
 }
 
+function renderAdminConsole() {
+  const visibleUsers = getVisibleAdminUsers();
+  renderAdminSummary(state.adminUsers);
+  renderAdminFilterPills();
+  renderAdminSelectionBar(visibleUsers);
+  renderAdminUsers(visibleUsers);
+  elements.adminResultsText.textContent = template("adminResultsSummary", {
+    shown: visibleUsers.length,
+    total: state.adminUsers.length,
+  });
+}
+
+function renderAdminSummary(users) {
+  const profiled = users.filter((user) => Boolean(user.profile)).length;
+  const aiConfigured = users.filter(adminAiReady).length;
+  const attention = users.filter(needsAttention).length;
+
+  elements.adminTotalUsers.textContent = users.length;
+  elements.adminProfiledUsers.textContent = profiled;
+  elements.adminAiConfiguredCount.textContent = aiConfigured;
+  elements.adminAttentionCount.textContent = attention;
+}
+
+function renderAdminFilterPills() {
+  elements.adminSearchInput.value = state.adminQuery;
+  elements.adminSortSelect.value = state.adminSort;
+  elements.adminFilterPills.querySelectorAll("[data-filter]").forEach((button) => {
+    const active = button.dataset.filter === state.adminFilter;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+}
+
+function renderAdminSelectionBar(visibleUsers) {
+  const selectedCount = state.adminSelected.size;
+  const allVisibleSelected = visibleUsers.length > 0 && visibleUsers.every((user) => state.adminSelected.has(user.id));
+
+  elements.adminSelectionBar.classList.toggle("hidden", selectedCount === 0);
+  elements.adminSelectionText.textContent = template("adminSelectionSummary", { count: selectedCount });
+  elements.selectVisibleButton.textContent = allVisibleSelected ? t("adminDeselectVisible") : t("adminSelectVisible");
+}
+
 function renderAdminUsers(users) {
   elements.adminUserList.innerHTML = "";
 
+  if (!users.length) {
+    const empty = document.createElement("article");
+    empty.className = "admin-empty-card";
+    empty.innerHTML = `
+      <h2>${escapeHtml(t("adminEmptyTitle"))}</h2>
+      <p>${escapeHtml(t("adminEmptyBody"))}</p>
+    `;
+    elements.adminUserList.append(empty);
+    return;
+  }
+
   users.forEach((user) => {
     const card = document.createElement("article");
-    card.className = "admin-card";
+    card.className = `admin-card admin-user-card${needsAttention(user) ? " attention" : ""}`;
 
     const header = document.createElement("div");
     header.className = "admin-card-header";
-    header.innerHTML = `
-      <div>
-        <h2>${escapeHtml(user.id)}${user.isAdmin ? " · admin" : ""}</h2>
-        <p>${t("messageCount")}: ${user.messageCount} · ${t("riskScore")}: ${formatRiskScore(user.riskScore)}</p>
-      </div>
-    `;
+
+    const identity = document.createElement("div");
+    identity.className = "admin-card-identity";
+
+    const topRow = document.createElement("div");
+    topRow.className = "admin-card-topline";
+
+    const selector = document.createElement("label");
+    selector.className = "admin-select-toggle";
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = state.adminSelected.has(user.id);
+    checkbox.addEventListener("change", () => {
+      if (checkbox.checked) state.adminSelected.add(user.id);
+      else state.adminSelected.delete(user.id);
+      renderAdminConsole();
+    });
+    const name = document.createElement("h2");
+    name.textContent = user.id;
+    selector.append(checkbox, name);
+    topRow.append(selector);
+
+    const badges = document.createElement("div");
+    badges.className = "admin-badge-row";
+    buildAdminBadges(user).forEach(({ text, tone }) => badges.append(createBadge(text, tone)));
+
+    const meta = document.createElement("p");
+    meta.className = "admin-card-meta";
+    meta.textContent = template("adminUserMeta", {
+      messages: user.messageCount || 0,
+      lastLogin: formatAdminDate(user.lastLoginAt),
+      created: formatAdminDate(user.createdAt),
+    });
+
+    const summary = document.createElement("p");
+    summary.className = "admin-card-summary";
+    summary.textContent = user.profileSummary || t("adminNoSummary");
+
+    identity.append(topRow, badges, meta, summary);
 
     const actions = document.createElement("div");
     actions.className = "admin-card-actions";
@@ -770,6 +916,13 @@ function renderAdminUsers(users) {
     clearButton.addEventListener("click", () => clearUserProfile(user.id));
     actions.append(clearButton);
 
+    const exportButton = document.createElement("button");
+    exportButton.className = "ghost-button";
+    exportButton.type = "button";
+    exportButton.textContent = t("adminExportUser");
+    exportButton.addEventListener("click", () => exportAdminUsers([user]));
+    actions.append(exportButton);
+
     if (!user.isAdmin) {
       const deleteButton = document.createElement("button");
       deleteButton.className = "danger-button";
@@ -779,27 +932,224 @@ function renderAdminUsers(users) {
       actions.append(deleteButton);
     }
 
-    header.append(actions);
+    header.append(identity, actions);
 
-    const details = document.createElement("div");
-    details.className = "admin-details";
-    const profile = user.profile ? JSON.stringify(user.profile, null, 2) : t("noProfile");
-    details.innerHTML = `
-      <section>
-        <h3>${t("profileDetails")}</h3>
-        <pre>${escapeHtml(profile)}</pre>
-      </section>
-      <section>
-        <h3>${t("aiConfig")}</h3>
-        <p>${escapeHtml(user.aiSettings.requestUrl || "-")}</p>
-        <p>${escapeHtml(user.aiSettings.model || "-")}</p>
-        <p>${user.aiSettings.hasApiKey ? t("apiKeyStored") : t("apiKeyMissing")}</p>
-      </section>
+    const metrics = document.createElement("div");
+    metrics.className = "admin-metric-strip";
+    [
+      [t("riskScore"), formatRiskScore(user.riskScore)],
+      [t("messageCount"), user.messageCount || 0],
+      [t("adminProfileStatus"), user.profile ? t("adminStatusProfiled") : t("adminStatusNoProfile")],
+      [t("adminAiStatus"), adminAiReady(user) ? t("configured") : t("apiKeyMissing")],
+    ].forEach(([labelText, valueText]) => {
+      const item = document.createElement("div");
+      item.className = "admin-metric-pill";
+      item.innerHTML = `<span>${escapeHtml(String(labelText))}</span><strong>${escapeHtml(String(valueText))}</strong>`;
+      metrics.append(item);
+    });
+
+    const details = document.createElement("details");
+    details.className = "admin-expand";
+
+    const detailsSummary = document.createElement("summary");
+    detailsSummary.textContent = t("adminExpandDetails");
+
+    const detailsGrid = document.createElement("div");
+    detailsGrid.className = "admin-details";
+
+    const overviewSection = document.createElement("section");
+    overviewSection.innerHTML = `
+      <h3>${escapeHtml(t("adminQuickView"))}</h3>
+      <p>${escapeHtml(template("adminQuickViewBody", {
+        model: user.aiSettings.model || "-",
+        updated: formatAdminDate(user.profileUpdatedAt),
+      }))}</p>
+    `;
+    const tagRow = document.createElement("div");
+    tagRow.className = "tag-group";
+    extractProfileTags(user).forEach((tag) => {
+      const node = document.createElement("span");
+      node.className = "tag";
+      node.textContent = tag;
+      tagRow.append(node);
+    });
+    overviewSection.append(tagRow);
+
+    const configSection = document.createElement("section");
+    configSection.innerHTML = `
+      <h3>${escapeHtml(t("aiConfig"))}</h3>
+      <p>${escapeHtml(user.aiSettings.requestUrl || "-")}</p>
+      <p>${escapeHtml(user.aiSettings.model || "-")}</p>
+      <p>${escapeHtml(user.aiSettings.hasApiKey ? t("apiKeyStored") : t("apiKeyMissing"))}</p>
     `;
 
-    card.append(header, details);
+    const profileSection = document.createElement("section");
+    profileSection.innerHTML = `
+      <h3>${escapeHtml(t("profileDetails"))}</h3>
+      <pre>${escapeHtml(user.profile ? JSON.stringify(user.profile, null, 2) : t("noProfile"))}</pre>
+    `;
+
+    detailsGrid.append(overviewSection, configSection, profileSection);
+    details.append(detailsSummary, detailsGrid);
+
+    card.append(header, metrics, details);
     elements.adminUserList.append(card);
   });
+}
+
+function getVisibleAdminUsers() {
+  return [...state.adminUsers]
+    .filter((user) => matchesAdminSearch(user, state.adminQuery))
+    .filter((user) => matchesAdminFilter(user, state.adminFilter))
+    .sort((left, right) => compareAdminUsers(left, right, state.adminSort));
+}
+
+function matchesAdminSearch(user, query) {
+  if (!query) return true;
+  return buildAdminSearchHaystack(user).includes(query.toLowerCase());
+}
+
+function matchesAdminFilter(user, filter) {
+  if (filter === "attention") return needsAttention(user);
+  if (filter === "high_risk") return isHighRisk(user);
+  if (filter === "ai_missing") return !adminAiReady(user);
+  if (filter === "profiled") return Boolean(user.profile);
+  return true;
+}
+
+function compareAdminUsers(left, right, sort) {
+  if (sort === "risk_desc") return compareNumbers(right.riskScore, left.riskScore) || compareNumbers(right.messageCount, left.messageCount);
+  if (sort === "messages_desc") return compareNumbers(right.messageCount, left.messageCount) || compareNumbers(right.riskScore, left.riskScore);
+  if (sort === "created_desc") return compareDates(right.createdAt, left.createdAt) || left.id.localeCompare(right.id);
+  return compareDates(right.lastLoginAt, left.lastLoginAt) || compareDates(right.createdAt, left.createdAt) || left.id.localeCompare(right.id);
+}
+
+function buildAdminSearchHaystack(user) {
+  return [
+    user.id,
+    user.profileSummary,
+    user.aiSettings?.requestUrl,
+    user.aiSettings?.model,
+    user.profile?.summary,
+    ...(user.profile?.traits || []),
+    ...(user.profile?.triggers || []),
+    ...(user.profile?.purchase_categories || []),
+    ...(user.profile?.emotional_states || []),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function buildAdminBadges(user) {
+  return [
+    user.isAdmin ? { text: t("adminBadgeAdmin"), tone: "neutral" } : null,
+    adminAiReady(user) ? { text: t("adminBadgeAiReady"), tone: "success" } : { text: t("adminBadgeAiMissing"), tone: "warning" },
+    user.profile ? { text: t("adminBadgeProfiled"), tone: "success" } : { text: t("adminBadgeNoProfile"), tone: "neutral" },
+    { text: riskBandText(user.riskScore), tone: riskBandTone(user.riskScore) },
+  ].filter(Boolean);
+}
+
+function createBadge(text, tone = "neutral") {
+  const node = document.createElement("span");
+  node.className = `admin-badge ${tone}`;
+  node.textContent = text;
+  return node;
+}
+
+function extractProfileTags(user) {
+  if (!user.profile) return [];
+  return [
+    ...(user.profile.traits || []),
+    ...(user.profile.triggers || []),
+    ...(user.profile.purchase_categories || []),
+    ...(user.profile.emotional_states || []),
+  ].filter(Boolean).slice(0, 8);
+}
+
+function isHighRisk(user) {
+  return Number(user.riskScore) >= 70;
+}
+
+function needsAttention(user) {
+  return isHighRisk(user) || !adminAiReady(user) || !user.profile;
+}
+
+function adminAiReady(user) {
+  return Boolean(user.aiSettings?.hasApiKey && user.aiSettings?.requestUrl && user.aiSettings?.model);
+}
+
+function compareNumbers(left, right) {
+  return Number(left || 0) - Number(right || 0);
+}
+
+function compareDates(left, right) {
+  return new Date(left || 0).getTime() - new Date(right || 0).getTime();
+}
+
+function riskBandText(value) {
+  if (value === null || value === undefined || value === -1) return t("adminRiskUnknown");
+  if (Number(value) >= 70) return t("adminRiskHigh");
+  if (Number(value) >= 40) return t("adminRiskMedium");
+  return t("adminRiskLow");
+}
+
+function riskBandTone(value) {
+  if (value === null || value === undefined || value === -1) return "neutral";
+  if (Number(value) >= 70) return "danger";
+  if (Number(value) >= 40) return "warning";
+  return "success";
+}
+
+async function clearSelectedProfiles() {
+  const selected = state.adminUsers.filter((user) => state.adminSelected.has(user.id));
+  if (!selected.length) return;
+  if (!confirm(template("confirmClearSelected", { count: selected.length }))) return;
+
+  setBusy(elements.clearSelectedProfilesButton, true);
+  try {
+    await Promise.all(selected.map((user) => api(`/admin/users/${encodeURIComponent(user.id)}/profile`, { method: "POST" })));
+    state.adminSelected.clear();
+    await loadAdminUsers();
+    alert(template("adminBulkClearDone", { count: selected.length }));
+  } finally {
+    setBusy(elements.clearSelectedProfilesButton, false);
+  }
+}
+
+function exportAdminUsers(users) {
+  if (!users.length) return;
+
+  const rows = [
+    [
+      "user_id",
+      "is_admin",
+      "risk_score",
+      "message_count",
+      "profiled",
+      "ai_configured",
+      "model",
+      "request_url",
+      "last_login_at",
+      "created_at",
+      "profile_summary",
+    ],
+    ...users.map((user) => [
+      user.id,
+      user.isAdmin ? "yes" : "no",
+      user.riskScore === null || user.riskScore === undefined ? "" : user.riskScore,
+      user.messageCount || 0,
+      user.profile ? "yes" : "no",
+      user.aiSettings?.hasApiKey ? "yes" : "no",
+      user.aiSettings?.model || "",
+      user.aiSettings?.requestUrl || "",
+      user.lastLoginAt || "",
+      user.createdAt || "",
+      user.profileSummary || "",
+    ]),
+  ];
+  const csv = `\uFEFF${rows.map((row) => row.map(escapeCsv).join(",")).join("\r\n")}`;
+  downloadText(`ai-isp-admin-${Date.now()}.csv`, csv, "text/csv;charset=utf-8");
 }
 
 async function deleteUser(userId) {
@@ -854,10 +1204,14 @@ function applyLanguage() {
   document.querySelectorAll("[data-i18n]").forEach((node) => {
     node.textContent = t(node.dataset.i18n);
   });
+  document.querySelectorAll("[data-i18n-placeholder]").forEach((node) => {
+    node.placeholder = t(node.dataset.i18nPlaceholder);
+  });
 
   elements.messageInput.placeholder = t("chatPlaceholder");
   elements.authSubmit.textContent = t(state.mode);
   renderAiStatus(state.aiConfigured);
+  elements.adminSortSelect.value = state.adminSort;
 
   if (state.lastInsights) {
     renderProfile(state.lastInsights.currentUserProfile, state.lastInsights.summary);
@@ -866,10 +1220,18 @@ function applyLanguage() {
     renderVisualization(state.lastInsights.visualization);
     renderFeatures(state.lastInsights.commonFeatures || []);
   }
+
+  if (state.user?.isAdmin) {
+    renderAdminConsole();
+  }
 }
 
 function t(key) {
   return I18N[state.language]?.[key] || I18N.en[key] || key;
+}
+
+function template(key, values = {}) {
+  return t(key).replace(/\{(\w+)\}/g, (_, name) => String(values[name] ?? ""));
 }
 
 function setBusy(button, busy) {
@@ -931,6 +1293,17 @@ function formatTime(value) {
   }).format(new Date(value));
 }
 
+function formatAdminDate(value) {
+  if (!value) return t("unknown");
+  return new Intl.DateTimeFormat(document.documentElement.lang, {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
 function escapeHtml(value) {
   return String(value)
     .replace(/&/g, "&amp;")
@@ -938,4 +1311,22 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+}
+
+function escapeCsv(value) {
+  const text = String(value ?? "");
+  if (/[",\r\n]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
+  return text;
+}
+
+function downloadText(filename, text, type) {
+  const blob = new Blob([text], { type });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
 }

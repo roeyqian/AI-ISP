@@ -222,6 +222,68 @@
             <button class="ghost-button" type="button" id="adminLogoutButton" data-i18n="logout">退出</button>
           </div>
         </header>
+        <section class="admin-summary-grid" id="adminSummaryGrid">
+          <article class="admin-summary-card">
+            <span data-i18n="userCount">用户数</span>
+            <strong id="adminTotalUsers">0</strong>
+            <small data-i18n="adminTotalUsersHint">全部账户</small>
+          </article>
+          <article class="admin-summary-card">
+            <span data-i18n="profileCount">画像数</span>
+            <strong id="adminProfiledUsers">0</strong>
+            <small data-i18n="adminProfiledUsersHint">已有行为画像</small>
+          </article>
+          <article class="admin-summary-card">
+            <span data-i18n="adminAiConfigured">AI 已配置</span>
+            <strong id="adminAiConfiguredCount">0</strong>
+            <small data-i18n="adminAiConfiguredHint">可直接进入测评</small>
+          </article>
+          <article class="admin-summary-card">
+            <span data-i18n="adminNeedsAttention">待关注</span>
+            <strong id="adminAttentionCount">0</strong>
+            <small data-i18n="adminAttentionHint">高风险或配置缺失</small>
+          </article>
+        </section>
+
+        <section class="admin-toolbar">
+          <label class="admin-search">
+            <span class="visually-hidden" data-i18n="adminSearch">搜索用户</span>
+            <input id="adminSearchInput" data-i18n-placeholder="adminSearchPlaceholder" placeholder="搜索用户、模型、画像摘要..." />
+          </label>
+          <div class="admin-filter-pills" id="adminFilterPills" role="group" aria-label="Admin filters">
+            <button type="button" class="admin-filter-pill active" data-filter="all" data-i18n="adminFilterAll">全部</button>
+            <button type="button" class="admin-filter-pill" data-filter="attention" data-i18n="adminFilterAttention">待关注</button>
+            <button type="button" class="admin-filter-pill" data-filter="high_risk" data-i18n="adminFilterHighRisk">高风险</button>
+            <button type="button" class="admin-filter-pill" data-filter="ai_missing" data-i18n="adminFilterAiMissing">未配 AI</button>
+            <button type="button" class="admin-filter-pill" data-filter="profiled" data-i18n="adminFilterProfiled">有画像</button>
+          </div>
+          <label class="admin-sort">
+            <span data-i18n="adminSort">排序</span>
+            <select id="adminSortSelect">
+              <option value="recent_login" data-i18n="adminSortRecentLogin">最近登录</option>
+              <option value="risk_desc" data-i18n="adminSortRiskDesc">风险从高到低</option>
+              <option value="messages_desc" data-i18n="adminSortMessagesDesc">消息从多到少</option>
+              <option value="created_desc" data-i18n="adminSortCreatedDesc">最近创建</option>
+            </select>
+          </label>
+          <div class="admin-toolbar-actions">
+            <button class="ghost-button" type="button" id="exportFilteredButton" data-i18n="adminExportFiltered">导出当前结果</button>
+          </div>
+        </section>
+
+        <section class="admin-selection-bar hidden" id="adminSelectionBar">
+          <p id="adminSelectionText">0 selected</p>
+          <div class="admin-selection-actions">
+            <button class="ghost-button" type="button" id="selectVisibleButton" data-i18n="adminSelectVisible">选择当前结果</button>
+            <button class="ghost-button" type="button" id="clearSelectedProfilesButton" data-i18n="adminClearSelected">清空所选画像</button>
+            <button class="ghost-button" type="button" id="exportSelectedButton" data-i18n="adminExportSelected">导出所选</button>
+            <button class="ghost-button" type="button" id="clearSelectionButton" data-i18n="adminClearSelection">取消选择</button>
+          </div>
+        </section>
+
+        <div class="admin-results-meta">
+          <p id="adminResultsText">0 results</p>
+        </div>
         <div class="admin-list" id="adminUserList"></div>
       </section>
     </main>
