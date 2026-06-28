@@ -24,6 +24,29 @@
           <p data-i18n="heroBody">
             面向存在冲动消费行为的用户，通过对话提取触发因素、情绪状态、购买类别和干预偏好，并汇总共同特征。
           </p>
+          <div class="hero-highlights">
+            <article class="hero-card">
+              <p class="eyebrow" data-i18n="contributionAgenticEyebrow">Agentic AI</p>
+              <h3 data-i18n="contributionAgenticTitle">状态化代理式干预</h3>
+              <p data-i18n="contributionAgenticBody">
+                把用户对话转成可持续追踪的冲动状态，并自动选择下一步评估或干预动作。
+              </p>
+            </article>
+            <article class="hero-card">
+              <p class="eyebrow" data-i18n="contributionTheoryEyebrow">Theory Stack</p>
+              <h3 data-i18n="contributionTheoryTitle">行为理论驱动</h3>
+              <p data-i18n="contributionTheoryBody">
+                用双系统、延迟折扣和实施意图等理论解释为什么这些干预可能有效。
+              </p>
+            </article>
+            <article class="hero-card">
+              <p class="eyebrow" data-i18n="contributionUiEyebrow">Novel UI</p>
+              <h3 data-i18n="contributionUiTitle">研究型可视化界面</h3>
+              <p data-i18n="contributionUiBody">
+                用风险轨迹和冲动循环图替代单一分数，展示消费冲动如何形成和被打断。
+              </p>
+            </article>
+          </div>
         </div>
 
         <form class="auth-card" id="authForm">
@@ -131,7 +154,54 @@
         </section>
 
         <aside class="insights-panel">
-          <header class="panel-header compact">
+          <div class="research-stack">
+            <section class="research-card">
+              <div class="research-card-head">
+                <div>
+                  <p class="eyebrow" data-i18n="agenticPanelEyebrow">Agentic AI</p>
+                  <h2 data-i18n="agenticPanelTitle">代理式干预环</h2>
+                </div>
+                <span class="status-pill neutral" id="agenticStagePill">-</span>
+              </div>
+              <p class="research-summary" id="agenticSummary"></p>
+              <p class="research-inline">
+                <span data-i18n="nextMoveLabel">下一步动作</span>
+                <strong id="agenticNextAction">-</strong>
+              </p>
+              <div class="signal-bars" id="agenticSignals"></div>
+              <div class="micro-tag-row" id="agenticDrivers"></div>
+              <ul class="bullet-list" id="agenticFeatures"></ul>
+            </section>
+
+            <section class="research-card">
+              <div class="research-card-head">
+                <div>
+                  <p class="eyebrow" data-i18n="theoryPanelEyebrow">Theory</p>
+                  <h2 data-i18n="theoryPanelTitle">干预理论基础</h2>
+                </div>
+              </div>
+              <p class="research-summary" data-i18n="theoryPanelBody">
+                将检测到的消费信号映射到行为理论，说明干预动作为什么可能有效。
+              </p>
+              <div class="theory-list" id="theoryCards"></div>
+            </section>
+
+            <section class="research-card">
+              <div class="research-card-head">
+                <div>
+                  <p class="eyebrow" data-i18n="visualizationPanelEyebrow">Visualization</p>
+                  <h2 data-i18n="visualizationPanelTitle">新型可视化与界面贡献</h2>
+                </div>
+              </div>
+              <div class="timeline-shell">
+                <div class="timeline-chart" id="riskTimeline"></div>
+              </div>
+              <div class="loop-grid" id="loopBoard"></div>
+              <ul class="bullet-list" id="visualizationContributions"></ul>
+            </section>
+          </div>
+
+          <header class="panel-header compact research-divider">
             <div>
               <p class="eyebrow" data-i18n="commonFeatures">共同特征</p>
               <h2 data-i18n="aggregateInsights">聚合洞察</h2>

@@ -222,13 +222,27 @@ async function insights(request, env) {
     "SELECT category, feature, count, last_seen_at FROM common_features ORDER BY count DESC, last_seen_at DESC LIMIT 30",
   ).all();
 
+  const recentMessagesResult = await env.db.prepare(
+    "SELECT role, content, created_at FROM messages WHERE user_id = ? ORDER BY created_at DESC LIMIT 18",
+  )
+    .bind(user.id)
+    .all();
+  const recentMessages = [...(recentMessagesResult.results || [])].reverse();
+  const currentUserProfile = profile ? parseJson(profile.profile_json, null) : null;
+  const agentic = buildAgenticInsights(currentUserProfile, recentMessages);
+  const theory = buildTheoryInsights(currentUserProfile, recentMessages);
+  const visualization = buildVisualizationInsights(currentUserProfile, recentMessages);
+
   return json({
-    currentUserProfile: profile ? parseJson(profile.profile_json, null) : null,
+    currentUserProfile,
     summary: profile?.summary || "",
     riskScore: profile?.risk_score === -1 ? null : profile?.risk_score || 0,
     updatedAt: profile?.updated_at || null,
     totals,
     commonFeatures: features.results || [],
+    agentic,
+    theory,
+    visualization,
   });
 }
 
@@ -554,7 +568,7 @@ async function callChatCompletion(aiSettings, messages, fallback, temperature) {
   });
 
   if (!response.ok) {
-    const detail = await response.text();
+    const detail = await readResponsePreview(response, 2048);
     console.error("AI request failed", response.status, detail.slice(0, 500));
     return fallback;
   }
@@ -639,6 +653,310 @@ function assessConsumptionRelevance(messages) {
   }
 
   return { status: "insufficient", reason: "There is not enough evidence to infer impulsive buying tendency." };
+}
+
+function buildAgenticInsights(profile, messages) {
+  const relevance = assessConsumptionRelevance(messages);
+  const state = deriveBehaviorState(profile, messages, relevance);
+  const stage = selectAgenticStage(state, relevance);
+
+  return {
+    stage,
+    relevance: relevance.status,
+    nextAction: selectNextAction(state, relevance),
+    drivers: state.drivers,
+    features: relevance.status === "insufficient"
+      ? ["adaptive_probe", "stateful_memory", "next_best_action"]
+      : ["adaptive_looping", "stateful_memory", "next_best_action"],
+    scores: {
+      promotion: state.promotion,
+      emotion: state.emotion,
+      social: state.social,
+      control: state.control,
+    },
+  };
+}
+
+function buildTheoryInsights(profile, messages) {
+  const relevance = assessConsumptionRelevance(messages);
+  const state = deriveBehaviorState(profile, messages, relevance);
+  const nextAction = selectNextAction(state, relevance);
+  const cards = [
+    {
+      theory: "dual_process",
+      strength: Math.round((state.promotion + state.emotion + (100 - state.control)) / 3),
+      signals: uniqueCodes([
+        state.promotion >= 45 ? "discount" : "",
+        state.emotion >= 45 ? "emotion" : "",
+        state.control < 45 ? "low_control" : "",
+      ]),
+      interventions: uniqueCodes([nextAction, "cooldown_compare", "substitute_reward"]).slice(0, 2),
+    },
+    {
+      theory: "temporal_discounting",
+      strength: Math.round((state.promotion + state.risk + (100 - state.control)) / 3),
+      signals: uniqueCodes([
+        state.promotion >= 45 ? "discount" : "",
+        state.risk >= 55 ? "urgency" : "",
+        state.control < 50 ? "delay" : "",
+      ]),
+      interventions: uniqueCodes([nextAction, "waitlist_commit", "budget_anchor"]).slice(0, 2),
+    },
+    {
+      theory: "implementation_intentions",
+      strength: Math.round((state.control + Math.max(state.risk, 40)) / 2),
+      signals: uniqueCodes([
+        state.control >= 45 ? "budget" : "",
+        state.control >= 45 ? "delay" : "",
+        state.social >= 45 ? "social" : "",
+      ]),
+      interventions: uniqueCodes([nextAction, "if_then_plan", "budget_anchor"]).slice(0, 2),
+    },
+    {
+      theory: "social_influence",
+      strength: Math.round((state.social + Math.max(state.risk - 10, 20)) / 2),
+      signals: uniqueCodes([
+        state.social >= 45 ? "social" : "",
+        state.promotion >= 45 ? "discount" : "",
+        state.control < 45 ? "compare" : "",
+      ]),
+      interventions: uniqueCodes([nextAction, "social_second_opinion", "waitlist_commit"]).slice(0, 2),
+    },
+  ]
+    .map((item) => ({ ...item, strength: clampNumber(item.strength, 12, 96) }))
+    .filter((item, index) => item.strength >= 35 || index < 3);
+
+  return { cards };
+}
+
+function buildVisualizationInsights(profile, messages) {
+  const relevance = assessConsumptionRelevance(messages);
+  const state = deriveBehaviorState(profile, messages, relevance);
+  const nextAction = selectNextAction(state, relevance);
+
+  return {
+    contributions: [
+      "trajectory_not_single_score",
+      "stateful_loop_map",
+      "distinct_user_normalization",
+    ],
+    timeline: buildRiskTimeline(messages, profile?.risk_score ?? state.risk),
+    loop: buildLoopSnapshot(state, nextAction),
+  };
+}
+
+function deriveBehaviorState(profile, messages, relevance = assessConsumptionRelevance(messages)) {
+  const text = messages.map((item) => item.content).join(" ");
+  const assessment = assessmentAnswerSignals(messages);
+  const storedRisk = profile?.risk_score;
+  const baseRisk = storedRisk === null || storedRisk === undefined ? (relevance.status === "relevant" ? 44 : 24) : Number(storedRisk || 0);
+  const promotion = clampNumber(
+    12
+      + (hasPromotionSignal(text) ? 28 : 0)
+      + (hasUrgencySignal(text) ? 16 : 0)
+      + (assessment.triggers.includes("discount") ? 18 : 0)
+      + assessment.riskBumps * 3,
+    0,
+    100,
+  );
+  const emotion = clampNumber(
+    10
+      + (hasEmotionSignal(text) ? 30 : 0)
+      + (assessment.emotions.includes("emotion") ? 18 : 0)
+      + (/(奖励|犒劳|治愈|feel better|reward|treat|me lo merezco|ご褒美)/i.test(text) ? 14 : 0),
+    0,
+    100,
+  );
+  const social = clampNumber(
+    8
+      + (hasSocialSignal(text) ? 28 : 0)
+      + (assessment.triggers.includes("social") ? 20 : 0),
+    0,
+    100,
+  );
+  const control = clampNumber(
+    22
+      + (hasBudgetSignal(text) ? 22 : 0)
+      + (hasComparisonSignal(text) ? 22 : 0)
+      + (hasDelaySignal(text) ? 14 : 0)
+      + (assessment.interventions.includes("delay") ? 18 : 0)
+      + (assessment.interventions.includes("budget") ? 18 : 0)
+      - Math.max(0, baseRisk - 55) * 0.35,
+    0,
+    100,
+  );
+  const risk = clampNumber(
+    Math.round(baseRisk * 0.45 + (promotion + emotion + social) * 0.24 - control * 0.12),
+    0,
+    100,
+  );
+  const drivers = uniqueCodes([
+    relevance.status === "insufficient" ? "scenario" : "",
+    promotion >= 45 ? "discount" : "",
+    emotion >= 45 ? "emotion" : "",
+    social >= 45 ? "social" : "",
+    control < 45 ? "low_control" : "",
+  ]);
+
+  if (!drivers.length) drivers.push("baseline");
+
+  return { baseRisk, promotion, emotion, social, control, risk, drivers, assessment };
+}
+
+function selectAgenticStage(state, relevance) {
+  if (relevance.status === "insufficient") return "sense";
+  if (state.risk >= 72 && state.control < 55) return "interrupt";
+  if (state.risk >= 52) return "reframe";
+  return "plan";
+}
+
+function selectNextAction(state, relevance) {
+  if (relevance.status === "insufficient") return "scenario_probe";
+  if (state.promotion >= 60 && state.control < 55) return "cooldown_compare";
+  if (state.emotion >= 60) return "substitute_reward";
+  if (state.social >= 55) return "social_second_opinion";
+  if (state.control < 50) return "budget_anchor";
+  if (state.risk >= 48) return "if_then_plan";
+  return "waitlist_commit";
+}
+
+function buildRiskTimeline(messages, fallbackRisk) {
+  const userMessages = messages.filter((item) => item.role === "user").slice(-6);
+
+  if (!userMessages.length) {
+    const base = clampNumber(fallbackRisk === null || fallbackRisk === undefined ? 26 : Number(fallbackRisk), 12, 90);
+    return [
+      { label: "baseline-1", value: Math.max(12, base - 6), signals: ["baseline"] },
+      { label: "baseline-2", value: base, signals: ["baseline"] },
+      { label: "baseline-3", value: Math.min(95, base + 4), signals: ["baseline"] },
+    ];
+  }
+
+  let rolling = clampNumber(fallbackRisk === null || fallbackRisk === undefined ? 38 : Number(fallbackRisk), 12, 90);
+  return userMessages.map((item, index) => {
+    const measured = scoreMessageRisk(item.content, rolling);
+    rolling = clampNumber(Math.round(rolling * 0.4 + measured * 0.6), 8, 96);
+    return {
+      label: item.created_at || `step-${index + 1}`,
+      value: rolling,
+      signals: detectSignalCodes(item.content),
+    };
+  });
+}
+
+function buildLoopSnapshot(state, nextAction) {
+  const frictionSignals = mapActionToSupportSignals(nextAction);
+  return [
+    {
+      step: "cue",
+      value: clampNumber(Math.round((state.promotion + state.social) / 2), 0, 100),
+      signals: uniqueCodes([
+        state.promotion >= 45 ? "discount" : "",
+        state.social >= 45 ? "social" : "",
+        state.risk >= 55 ? "urgency" : "",
+      ]),
+    },
+    {
+      step: "urge",
+      value: clampNumber(Math.round((state.promotion + state.emotion) / 2), 0, 100),
+      signals: uniqueCodes([
+        state.emotion >= 45 ? "emotion" : "",
+        state.promotion >= 45 ? "discount" : "",
+      ]),
+    },
+    {
+      step: "friction",
+      value: state.control,
+      signals: uniqueCodes(frictionSignals),
+    },
+    {
+      step: "reflection",
+      value: clampNumber(Math.round((state.control + (100 - state.risk)) / 2), 0, 100),
+      signals: uniqueCodes([
+        ...frictionSignals,
+        state.control >= 45 ? "budget" : "",
+      ]),
+    },
+  ];
+}
+
+function mapActionToSupportSignals(action) {
+  const map = {
+    scenario_probe: ["scenario"],
+    cooldown_compare: ["delay", "compare"],
+    substitute_reward: ["emotion", "routine"],
+    social_second_opinion: ["social", "compare"],
+    budget_anchor: ["budget", "delay"],
+    waitlist_commit: ["delay", "budget"],
+    if_then_plan: ["budget", "routine"],
+  };
+  return map[action] || ["baseline"];
+}
+
+function scoreMessageRisk(content, baseline) {
+  const text = String(content || "");
+  const assessment = assessmentAnswerSignals([{ role: "user", content: text }]);
+  let score = clampNumber(baseline === null || baseline === undefined ? 38 : Number(baseline), 8, 95);
+
+  if (hasPromotionSignal(text)) score += 18;
+  if (hasUrgencySignal(text)) score += 12;
+  if (hasEmotionSignal(text)) score += 16;
+  if (hasSocialSignal(text)) score += 12;
+  if (hasBudgetSignal(text)) score -= 10;
+  if (hasComparisonSignal(text)) score -= 12;
+  if (hasDelaySignal(text)) score -= 8;
+
+  score += assessment.riskBumps * 6;
+  if (assessment.interventions.includes("delay")) score -= 10;
+  if (assessment.interventions.includes("budget")) score -= 12;
+
+  return clampNumber(Math.round(score), 8, 95);
+}
+
+function detectSignalCodes(text) {
+  const value = String(text || "");
+  const signals = uniqueCodes([
+    hasPromotionSignal(value) ? "discount" : "",
+    hasEmotionSignal(value) ? "emotion" : "",
+    hasSocialSignal(value) ? "social" : "",
+    hasBudgetSignal(value) ? "budget" : "",
+    hasComparisonSignal(value) ? "compare" : "",
+    hasDelaySignal(value) ? "delay" : "",
+    hasUrgencySignal(value) ? "urgency" : "",
+  ]);
+  return signals.length ? signals : ["baseline"];
+}
+
+function hasPromotionSignal(text) {
+  return /(打折|折扣|优惠|满减|限时|秒杀|活动|降价|discount|sale|flash sale|limited|price drop|oferta|descuento|rebaja|割引|セール|値下がり)/i.test(text);
+}
+
+function hasUrgencySignal(text) {
+  return /(马上|立刻|只剩|恢复原价|今天截止|现在买|now|right now|last chance|expiring|running out|hoy|ahora|queda poco|今すぐ|本日中|残りわずか)/i.test(text);
+}
+
+function hasEmotionSignal(text) {
+  return /(焦虑|压力|难过|烦|开心|奖励|犒劳|治愈|stress|anxious|reward|regret|guilt|feel better|treat myself|estrés|ansiedad|recompensa|culpa|後悔|不安|ストレス|ご褒美)/i.test(text);
+}
+
+function hasSocialSignal(text) {
+  return /(直播|种草|博主|推荐|社交|朋友|同事|群聊|influencer|recommend|social|friend|group chat|creator|amigo|chat|recomendó|友達|同僚|おすすめ|チャット)/i.test(text);
+}
+
+function hasBudgetSignal(text) {
+  return /(预算|账单|支出|固定开销|清单|比月末|budget|bill|expense|limit|planned purchase|presupuesto|factura|gasto|límite|予算|支払い|出費|固定費)/i.test(text);
+}
+
+function hasComparisonSignal(text) {
+  return /(比较|对比|比价|评价|评论|记录|同类|替代|compare|review|price record|alternative|comparar|reseña|alternativa|比較|レビュー|代替)/i.test(text);
+}
+
+function hasDelaySignal(text) {
+  return /(明天|先放着|晚点|等一等|冷静|回头再看|tomorrow|later|wait|hold|pause|save for later|mañana|después|esperar|guardarlo|明日|あとで|待つ|いったん)/i.test(text);
+}
+
+function uniqueCodes(items) {
+  return [...new Set(items.filter(Boolean))];
 }
 
 function makeHeuristicProfile(messages, language, relevance = assessConsumptionRelevance(messages)) {
@@ -1106,6 +1424,38 @@ function randomHex(bytes) {
 
 function arrayBufferToHex(buffer) {
   return [...new Uint8Array(buffer)].map((value) => value.toString(16).padStart(2, "0")).join("");
+}
+
+async function readResponsePreview(response, maxChars) {
+  if (!response.body) return "";
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let preview = "";
+
+  try {
+    while (preview.length < maxChars) {
+      const { done, value } = await reader.read();
+      if (done || !value) break;
+      preview += decoder.decode(value, { stream: true });
+      if (preview.length >= maxChars) {
+        preview = preview.slice(0, maxChars);
+        break;
+      }
+    }
+
+    preview += decoder.decode();
+    return preview.slice(0, maxChars);
+  } catch {
+    return preview.slice(0, maxChars);
+  } finally {
+    await reader.cancel().catch(() => {});
+  }
+}
+
+function clampNumber(value, min, max) {
+  if (!Number.isFinite(value)) return min;
+  return Math.max(min, Math.min(max, Math.round(value)));
 }
 
 function parseJson(value, fallback) {

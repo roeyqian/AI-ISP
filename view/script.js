@@ -6,6 +6,8 @@ const state = {
   user: null,
   language: localStorage.getItem("ai_isp_language") || "en",
   attachedFile: null,
+  lastInsights: null,
+  aiConfigured: false,
 };
 
 const elements = {
@@ -33,6 +35,16 @@ const elements = {
   profileSummary: document.querySelector("#profileSummary"),
   profileTags: document.querySelector("#profileTags"),
   featureList: document.querySelector("#featureList"),
+  agenticStagePill: document.querySelector("#agenticStagePill"),
+  agenticSummary: document.querySelector("#agenticSummary"),
+  agenticNextAction: document.querySelector("#agenticNextAction"),
+  agenticSignals: document.querySelector("#agenticSignals"),
+  agenticDrivers: document.querySelector("#agenticDrivers"),
+  agenticFeatures: document.querySelector("#agenticFeatures"),
+  theoryCards: document.querySelector("#theoryCards"),
+  riskTimeline: document.querySelector("#riskTimeline"),
+  loopBoard: document.querySelector("#loopBoard"),
+  visualizationContributions: document.querySelector("#visualizationContributions"),
   aiSettingsForm: document.querySelector("#aiSettingsForm"),
   requestUrlInput: document.querySelector("#requestUrlInput"),
   modelInput: document.querySelector("#modelInput"),
@@ -221,6 +233,8 @@ async function logout() {
 
   state.token = "";
   state.user = null;
+  state.lastInsights = null;
+  state.aiConfigured = false;
   localStorage.removeItem("ai_isp_token");
   elements.workspace.classList.add("hidden");
   elements.adminPanel.classList.add("hidden");
@@ -259,14 +273,18 @@ async function clearMyContext() {
 }
 
 async function loadInsights() {
-  const result = await api("/insights");
+  const result = await api(`/insights?language=${encodeURIComponent(state.language)}`);
   const totals = result.totals || {};
+  state.lastInsights = result;
 
   elements.totalUsers.textContent = totals.total_users || 0;
   elements.profiledUsers.textContent = totals.profiled_users || 0;
   elements.totalMessages.textContent = totals.total_messages || 0;
   elements.riskScore.textContent = formatRiskScore(result.riskScore);
   renderProfile(result.currentUserProfile, result.summary);
+  renderAgentic(result.agentic);
+  renderTheory(result.theory);
+  renderVisualization(result.visualization);
   renderFeatures(result.commonFeatures || []);
 }
 
@@ -365,6 +383,368 @@ function renderFeatures(features) {
   });
 }
 
+function renderAgentic(agentic = {}) {
+  const stage = agentic.stage || "sense";
+  const drivers = Array.isArray(agentic.drivers) && agentic.drivers.length ? agentic.drivers : ["baseline"];
+  const features = Array.isArray(agentic.features) && agentic.features.length
+    ? agentic.features
+    : ["adaptive_probe", "stateful_memory", "next_best_action"];
+
+  elements.agenticStagePill.className = "status-pill neutral";
+  if (stage === "interrupt") elements.agenticStagePill.classList.add("warning");
+  if (stage === "plan") elements.agenticStagePill.classList.add("ready");
+  elements.agenticStagePill.textContent = stageText(stage);
+  elements.agenticSummary.textContent = buildAgenticSummary(stage, drivers, agentic.relevance);
+  elements.agenticNextAction.textContent = actionText(agentic.nextAction || "scenario_probe");
+
+  renderSignalBars(agentic.scores || {});
+  renderMicroTags(elements.agenticDrivers, drivers.map((driver) => signalText(driver)));
+
+  elements.agenticFeatures.innerHTML = "";
+  features.forEach((feature) => {
+    const item = document.createElement("li");
+    item.textContent = agenticFeatureText(feature);
+    elements.agenticFeatures.append(item);
+  });
+}
+
+function renderTheory(theory = {}) {
+  const cards = Array.isArray(theory.cards) ? theory.cards : [];
+  elements.theoryCards.innerHTML = "";
+
+  if (!cards.length) {
+    const empty = document.createElement("p");
+    empty.className = "empty-state";
+    empty.textContent = t("noResearchData");
+    elements.theoryCards.append(empty);
+    return;
+  }
+
+  cards.forEach((card) => {
+    const item = document.createElement("article");
+    item.className = "theory-card";
+
+    const header = document.createElement("div");
+    header.className = "theory-card-head";
+
+    const title = document.createElement("h3");
+    title.textContent = theoryName(card.theory);
+
+    const score = document.createElement("span");
+    score.className = "theory-score";
+    score.textContent = `${normalizePercent(card.strength)}%`;
+
+    header.append(title, score);
+
+    const body = document.createElement("p");
+    body.className = "theory-copy";
+    body.textContent = theoryDescription(card.theory);
+
+    const bar = document.createElement("div");
+    bar.className = "strength-bar";
+    const fill = document.createElement("span");
+    fill.style.width = `${normalizePercent(card.strength)}%`;
+    bar.append(fill);
+
+    const signals = document.createElement("p");
+    signals.className = "theory-meta";
+    signals.innerHTML = `<strong>${t("matchedSignalsLabel")}</strong> ${renderInlineList(card.signals, signalText)}`;
+
+    const interventions = document.createElement("p");
+    interventions.className = "theory-meta";
+    interventions.innerHTML = `<strong>${t("recommendedInterventionLabel")}</strong> ${renderInlineList(card.interventions, actionText)}`;
+
+    item.append(header, body, bar, signals, interventions);
+    elements.theoryCards.append(item);
+  });
+}
+
+function renderVisualization(visualization = {}) {
+  renderRiskTimeline(Array.isArray(visualization.timeline) ? visualization.timeline : []);
+  renderLoopBoard(Array.isArray(visualization.loop) ? visualization.loop : []);
+
+  const contributions = Array.isArray(visualization.contributions) ? visualization.contributions : [];
+  elements.visualizationContributions.innerHTML = "";
+  contributions.forEach((item) => {
+    const node = document.createElement("li");
+    node.textContent = visualizationContributionText(item);
+    elements.visualizationContributions.append(node);
+  });
+}
+
+function renderSignalBars(scores) {
+  const items = [
+    { key: "promotion", label: t("signalPromotion") },
+    { key: "emotion", label: t("signalEmotion") },
+    { key: "social", label: t("signalSocial") },
+    { key: "control", label: t("signalControl") },
+  ];
+
+  elements.agenticSignals.innerHTML = "";
+  items.forEach((item) => {
+    const value = normalizePercent(scores[item.key]);
+    const row = document.createElement("div");
+    row.className = "signal-row";
+
+    const label = document.createElement("span");
+    label.className = "signal-label";
+    label.textContent = item.label;
+
+    const track = document.createElement("div");
+    track.className = "signal-track";
+    const fill = document.createElement("span");
+    fill.style.width = `${value}%`;
+    track.append(fill);
+
+    const metric = document.createElement("strong");
+    metric.className = "signal-metric";
+    metric.textContent = value;
+
+    row.append(label, track, metric);
+    elements.agenticSignals.append(row);
+  });
+}
+
+function renderMicroTags(container, items) {
+  container.innerHTML = "";
+  items.forEach((item) => {
+    const tag = document.createElement("span");
+    tag.className = "micro-tag";
+    tag.textContent = item;
+    container.append(tag);
+  });
+}
+
+function renderRiskTimeline(points) {
+  if (!points.length) {
+    elements.riskTimeline.innerHTML = `<p class="empty-state">${escapeHtml(t("noResearchData"))}</p>`;
+    return;
+  }
+
+  const width = 320;
+  const height = 136;
+  const paddingX = 18;
+  const paddingY = 18;
+  const usableWidth = Math.max(1, width - paddingX * 2);
+  const usableHeight = Math.max(1, height - paddingY * 2);
+  const steps = Math.max(points.length - 1, 1);
+  const coords = points.map((point, index) => {
+    const value = normalizePercent(point.value);
+    const x = paddingX + (usableWidth * index) / steps;
+    const y = height - paddingY - (usableHeight * value) / 100;
+    return { x, y, value, point };
+  });
+  const polyline = coords.map((point) => `${point.x},${point.y}`).join(" ");
+  const area = [
+    `${coords[0].x},${height - paddingY}`,
+    ...coords.map((point) => `${point.x},${point.y}`),
+    `${coords[coords.length - 1].x},${height - paddingY}`,
+  ].join(" ");
+  const circles = coords
+    .map(
+      (point) =>
+        `<circle cx="${point.x}" cy="${point.y}" r="4.5"></circle>`,
+    )
+    .join("");
+  const labels = points
+    .map((point, index) => {
+      const signal = Array.isArray(point.signals) && point.signals.length ? signalText(point.signals[0]) : signalText("baseline");
+      return `
+        <div class="timeline-label">
+          <strong>${escapeHtml(formatTimelineLabel(point.label, index))}</strong>
+          <small>${escapeHtml(signal)}</small>
+        </div>
+      `;
+    })
+    .join("");
+
+  elements.riskTimeline.innerHTML = `
+    <svg class="timeline-svg" viewBox="0 0 ${width} ${height}" aria-label="${escapeHtml(t("visualizationPanelTitle"))}">
+      <defs>
+        <linearGradient id="timelineFill" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stop-color="rgba(11, 111, 107, 0.34)"></stop>
+          <stop offset="100%" stop-color="rgba(11, 111, 107, 0.02)"></stop>
+        </linearGradient>
+      </defs>
+      <line x1="${paddingX}" y1="${height - paddingY}" x2="${width - paddingX}" y2="${height - paddingY}" class="timeline-axis"></line>
+      <polygon points="${area}" fill="url(#timelineFill)"></polygon>
+      <polyline points="${polyline}" class="timeline-line"></polyline>
+      ${circles}
+    </svg>
+    <div class="timeline-labels">${labels}</div>
+  `;
+}
+
+function renderLoopBoard(items) {
+  elements.loopBoard.innerHTML = "";
+
+  if (!items.length) {
+    const empty = document.createElement("p");
+    empty.className = "empty-state";
+    empty.textContent = t("noResearchData");
+    elements.loopBoard.append(empty);
+    return;
+  }
+
+  items.forEach((item) => {
+    const card = document.createElement("article");
+    card.className = "loop-card";
+
+    const head = document.createElement("div");
+    head.className = "loop-card-head";
+
+    const title = document.createElement("h3");
+    title.textContent = loopStepText(item.step);
+
+    const value = document.createElement("strong");
+    value.textContent = normalizePercent(item.value);
+
+    head.append(title, value);
+
+    const body = document.createElement("p");
+    body.className = "loop-copy";
+    body.textContent = loopStepDescription(item.step);
+
+    const tags = document.createElement("div");
+    tags.className = "micro-tag-row";
+    (Array.isArray(item.signals) ? item.signals : []).forEach((signal) => {
+      const tag = document.createElement("span");
+      tag.className = "micro-tag";
+      tag.textContent = signalText(signal);
+      tags.append(tag);
+    });
+
+    card.append(head, body, tags);
+    elements.loopBoard.append(card);
+  });
+}
+
+function buildAgenticSummary(stage, drivers, relevance) {
+  const summaries = {
+    sense: t("agenticSummarySense"),
+    interrupt: t("agenticSummaryInterrupt"),
+    reframe: t("agenticSummaryReframe"),
+    plan: t("agenticSummaryPlan"),
+  };
+  const base = relevance === "insufficient" ? t("agenticSummaryInsufficient") : summaries[stage] || summaries.sense;
+  const signalLine = drivers
+    .filter((item) => item !== "baseline")
+    .slice(0, 2)
+    .map((item) => signalText(item))
+    .join(" / ");
+
+  return signalLine ? `${base} ${t("detectedSignalsLabel")}: ${signalLine}.` : base;
+}
+
+function stageText(stage) {
+  return {
+    sense: t("stageSense"),
+    interrupt: t("stageInterrupt"),
+    reframe: t("stageReframe"),
+    plan: t("stagePlan"),
+  }[stage] || t("stageSense");
+}
+
+function actionText(action) {
+  return {
+    scenario_probe: t("actionScenarioProbe"),
+    cooldown_compare: t("actionCooldownCompare"),
+    substitute_reward: t("actionSubstituteReward"),
+    social_second_opinion: t("actionSocialSecondOpinion"),
+    budget_anchor: t("actionBudgetAnchor"),
+    waitlist_commit: t("actionWaitlistCommit"),
+    if_then_plan: t("actionIfThenPlan"),
+  }[action] || t("actionScenarioProbe");
+}
+
+function signalText(signal) {
+  return {
+    discount: t("signalDiscount"),
+    emotion: t("signalEmotionTag"),
+    social: t("signalSocialTag"),
+    budget: t("signalBudget"),
+    compare: t("signalCompare"),
+    delay: t("signalDelay"),
+    routine: t("signalRoutine"),
+    urgency: t("signalUrgency"),
+    low_control: t("signalLowControl"),
+    baseline: t("signalBaseline"),
+    scenario: t("signalScenario"),
+  }[signal] || signal;
+}
+
+function theoryName(theory) {
+  return {
+    dual_process: t("theoryDualProcess"),
+    temporal_discounting: t("theoryTemporalDiscounting"),
+    implementation_intentions: t("theoryImplementationIntentions"),
+    social_influence: t("theorySocialInfluence"),
+  }[theory] || theory;
+}
+
+function theoryDescription(theory) {
+  return {
+    dual_process: t("theoryBodyDualProcess"),
+    temporal_discounting: t("theoryBodyTemporalDiscounting"),
+    implementation_intentions: t("theoryBodyImplementationIntentions"),
+    social_influence: t("theoryBodySocialInfluence"),
+  }[theory] || "";
+}
+
+function loopStepText(step) {
+  return {
+    cue: t("loopCue"),
+    urge: t("loopUrge"),
+    friction: t("loopFriction"),
+    reflection: t("loopReflection"),
+  }[step] || step;
+}
+
+function loopStepDescription(step) {
+  return {
+    cue: t("loopCueBody"),
+    urge: t("loopUrgeBody"),
+    friction: t("loopFrictionBody"),
+    reflection: t("loopReflectionBody"),
+  }[step] || "";
+}
+
+function agenticFeatureText(feature) {
+  return {
+    adaptive_probe: t("featureAdaptiveProbe"),
+    adaptive_looping: t("featureAdaptiveLooping"),
+    stateful_memory: t("featureStatefulMemory"),
+    next_best_action: t("featureNextBestAction"),
+  }[feature] || feature;
+}
+
+function visualizationContributionText(code) {
+  return {
+    trajectory_not_single_score: t("vizTrajectory"),
+    stateful_loop_map: t("vizLoopMap"),
+    distinct_user_normalization: t("vizDistinctUser"),
+  }[code] || code;
+}
+
+function renderInlineList(items, formatter) {
+  const list = Array.isArray(items) ? items.filter(Boolean) : [];
+  if (!list.length) return escapeHtml(t("unknown"));
+  return list.slice(0, 3).map((item) => escapeHtml(formatter(item))).join(" · ");
+}
+
+function formatTimelineLabel(label, index) {
+  if (typeof label === "string" && /^\d{4}-\d{2}-\d{2}T/.test(label)) {
+    return formatTime(label);
+  }
+  return `T${index + 1}`;
+}
+
+function normalizePercent(value) {
+  const number = Number(value || 0);
+  if (!Number.isFinite(number)) return 0;
+  return Math.max(0, Math.min(100, Math.round(number)));
+}
+
 function renderAdminUsers(users) {
   elements.adminUserList.innerHTML = "";
 
@@ -437,6 +817,7 @@ async function clearUserProfile(userId) {
 }
 
 function renderAiStatus(configured) {
+  state.aiConfigured = configured;
   elements.aiStatus.textContent = configured ? t("configured") : t("notConfigured");
   elements.aiStatus.classList.toggle("ready", configured);
 }
@@ -476,6 +857,15 @@ function applyLanguage() {
 
   elements.messageInput.placeholder = t("chatPlaceholder");
   elements.authSubmit.textContent = t(state.mode);
+  renderAiStatus(state.aiConfigured);
+
+  if (state.lastInsights) {
+    renderProfile(state.lastInsights.currentUserProfile, state.lastInsights.summary);
+    renderAgentic(state.lastInsights.agentic);
+    renderTheory(state.lastInsights.theory);
+    renderVisualization(state.lastInsights.visualization);
+    renderFeatures(state.lastInsights.commonFeatures || []);
+  }
 }
 
 function t(key) {
@@ -504,10 +894,10 @@ function formatRiskScore(value) {
 function categoryText(category) {
   return {
     trait: t("userProfile"),
-    trigger: "Trigger",
-    category: "Category",
-    emotion: "Emotion",
-    intervention: "Intervention",
+    trigger: t("categoryTrigger"),
+    category: t("categoryCategory"),
+    emotion: t("categoryEmotion"),
+    intervention: t("categoryIntervention"),
   }[category] || category;
 }
 

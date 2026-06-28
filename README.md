@@ -8,6 +8,9 @@ AI-ISP is a Cloudflare Workers web application for conversational research aroun
 - OpenAI-compatible chat integration configured per user from the web UI.
 - Impulsive-spending assistant that asks clarifying questions, avoids forced analysis for ambiguous input, and supports delayed-decision guidance.
 - Structured user profiles with summary, impulse level, risk score, traits, triggers, purchase categories, emotional states, intervention preferences, and evidence.
+- Agentic intervention loop that classifies the current conversation into sense, interrupt, reframe, or plan stages and recommends the next-best intervention move.
+- Theory cards that map detected spending signals to dual-process theory, temporal discounting, implementation intentions, and social influence.
+- Novel research UI with an impulse-risk trajectory chart, loop-state board, and distinct-user-normalized aggregate features.
 - Aggregate shared traits counted by distinct users so repeated messages from one user do not inflate global feature counts.
 - Admin console for reviewing users, profile details, AI configuration status, deleting users, and clearing profile/chat data.
 - Multilingual interface and assistant output for Simplified Chinese, English, Japanese, and Spanish.
@@ -58,6 +61,14 @@ POST   /api/admin/users/:userId/profile
 ```
 
 Non-API requests are served from `view/` through the `ASSETS` binding.
+
+## Research Contribution Framing
+
+The current app is designed to answer three common research-review questions directly in the product UI:
+
+- `Agentic AI features`: the app maintains a persistent impulse-state memory, selects a next-best intervention move, and keeps cycling through a stateful intervention loop instead of acting like a one-shot classifier.
+- `Theory foundation`: the app exposes how dual-process theory, temporal discounting, implementation intentions, and social influence can justify specific micro-interventions for impulsive spending.
+- `Novel UI / visualization`: the right-hand research panel shows a risk trajectory, an impulse-loop board, and distinct-user-normalized aggregate features so reviewers can see more than a single risk score.
 
 ## Database
 
