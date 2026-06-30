@@ -25,6 +25,18 @@ const elements = {
   authPanel: document.querySelector("#authPanel"),
   workspace: document.querySelector("#workspace"),
   adminPanel: document.querySelector("#adminPanel"),
+  studyProtocolId: document.querySelector("#studyProtocolId"),
+  protocolSteps: document.querySelector("#protocolSteps"),
+  participantSummary: document.querySelector("#participantSummary"),
+  participantStageValue: document.querySelector("#participantStageValue"),
+  participantEvidenceValue: document.querySelector("#participantEvidenceValue"),
+  participantCompletionValue: document.querySelector("#participantCompletionValue"),
+  participantTurnsValue: document.querySelector("#participantTurnsValue"),
+  participantScenarioValue: document.querySelector("#participantScenarioValue"),
+  participantUpdatedValue: document.querySelector("#participantUpdatedValue"),
+  studyExportStatus: document.querySelector("#studyExportStatus"),
+  studyLastUpdated: document.querySelector("#studyLastUpdated"),
+  exportStudyButton: document.querySelector("#exportStudyButton"),
   authForm: document.querySelector("#authForm"),
   authSubmit: document.querySelector("#authSubmit"),
   authMessage: document.querySelector("#authMessage"),
@@ -38,6 +50,9 @@ const elements = {
   messageInput: document.querySelector("#messageInput"),
   sendButton: document.querySelector("#sendButton"),
   aiStatus: document.querySelector("#aiStatus"),
+  sessionStagePill: document.querySelector("#sessionStagePill"),
+  sessionEvidencePill: document.querySelector("#sessionEvidencePill"),
+  protocolCueText: document.querySelector("#protocolCueText"),
   riskScore: document.querySelector("#riskScore"),
   totalUsers: document.querySelector("#totalUsers"),
   profiledUsers: document.querySelector("#profiledUsers"),
@@ -51,6 +66,11 @@ const elements = {
   agenticSignals: document.querySelector("#agenticSignals"),
   agenticDrivers: document.querySelector("#agenticDrivers"),
   agenticFeatures: document.querySelector("#agenticFeatures"),
+  methodologyList: document.querySelector("#methodologyList"),
+  evidenceLevelPill: document.querySelector("#evidenceLevelPill"),
+  evidenceSummary: document.querySelector("#evidenceSummary"),
+  evidenceSignals: document.querySelector("#evidenceSignals"),
+  evidenceNotes: document.querySelector("#evidenceNotes"),
   theoryCards: document.querySelector("#theoryCards"),
   riskTimeline: document.querySelector("#riskTimeline"),
   loopBoard: document.querySelector("#loopBoard"),
@@ -189,6 +209,7 @@ elements.exportSelectedButton.addEventListener("click", () => {
   exportAdminUsers(selected);
 });
 elements.clearSelectedProfilesButton.addEventListener("click", clearSelectedProfiles);
+elements.exportStudyButton.addEventListener("click", exportResearchPackage);
 
 elements.aiSettingsForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -366,6 +387,9 @@ async function loadInsights() {
   elements.profiledUsers.textContent = totals.profiled_users || 0;
   elements.totalMessages.textContent = totals.total_messages || 0;
   elements.riskScore.textContent = formatRiskScore(result.riskScore);
+  renderStudyMeta(result.studyMeta || {});
+  renderParticipant(result.participant || {});
+  renderMethodology(result.methodology || {});
   renderProfile(result.currentUserProfile, result.summary);
   renderAgentic(result.agentic);
   renderTheory(result.theory);
@@ -408,6 +432,98 @@ function renderMessage(message) {
   item.append(role, bubble);
   elements.messages.append(item);
   elements.messages.scrollTop = elements.messages.scrollHeight;
+}
+
+function renderStudyMeta(studyMeta = {}) {
+  elements.studyProtocolId.textContent = studyMeta.protocolId || "AI-ISP-SJT-2026.06";
+  elements.studyExportStatus.textContent = studyMeta.exportReady ? t("exportReady") : t("exportNotReady");
+  elements.studyLastUpdated.textContent = template("studyLastUpdatedChip", {
+    time: formatMaybeDate(studyMeta.lastUpdatedAt),
+  });
+}
+
+function renderParticipant(participant = {}) {
+  const stage = participant.stage || "screening";
+  const evidenceLevel = participant.evidenceLevel || "low";
+  const completion = normalizePercent(participant.completion);
+  const updatedAt = participant.profileUpdatedAt || participant.lastActivityAt || null;
+
+  elements.participantSummary.textContent = participantSummaryText(stage, evidenceLevel, completion);
+  elements.participantStageValue.textContent = participantStageText(stage);
+  elements.participantEvidenceValue.textContent = evidenceLevelText(evidenceLevel);
+  elements.participantCompletionValue.textContent = `${completion}%`;
+  elements.participantTurnsValue.textContent = participant.userTurns || 0;
+  elements.participantScenarioValue.textContent = participant.scenarioAnswerCount || 0;
+  elements.participantUpdatedValue.textContent = formatMaybeDate(updatedAt);
+  elements.studyExportStatus.textContent = participant.exportReady ? t("exportReady") : t("exportNotReady");
+  elements.studyLastUpdated.textContent = template("studyLastUpdatedChip", { time: formatMaybeDate(updatedAt) });
+  elements.protocolCueText.textContent = template("protocolCueTemplate", {
+    action: actionText(participant.nextAction || "scenario_probe"),
+  });
+
+  elements.sessionStagePill.className = `status-pill ${participantStageTone(stage)}`;
+  elements.sessionStagePill.textContent = participantStageText(stage);
+  elements.sessionEvidencePill.className = `status-pill ${evidenceLevelTone(evidenceLevel)}`;
+  elements.sessionEvidencePill.textContent = evidenceLevelText(evidenceLevel);
+  elements.evidenceLevelPill.className = `status-pill ${evidenceLevelTone(evidenceLevel)}`;
+  elements.evidenceLevelPill.textContent = evidenceLevelText(evidenceLevel);
+  elements.evidenceSummary.textContent = participantSummaryText(stage, evidenceLevel, completion);
+  renderMicroTags(elements.evidenceSignals, (participant.activeSignals || []).map((signal) => signalText(signal)));
+
+  elements.evidenceNotes.innerHTML = "";
+  (participant.notes || []).forEach((note) => {
+    const item = document.createElement("li");
+    item.textContent = participantNoteText(note);
+    elements.evidenceNotes.append(item);
+  });
+
+  if (!elements.evidenceNotes.children.length) {
+    const item = document.createElement("li");
+    item.textContent = t("evidenceNoteFallback");
+    elements.evidenceNotes.append(item);
+  }
+}
+
+function renderMethodology(methodology = {}) {
+  const groups = [
+    { title: t("methodologyProtocolTitle"), items: methodology.protocol || [] },
+    { title: t("methodologyMeasuresTitle"), items: methodology.measures || [] },
+    { title: t("methodologyOutputsTitle"), items: methodology.outputs || [] },
+    { title: t("methodologySafeguardsTitle"), items: methodology.safeguards || [] },
+  ];
+
+  elements.methodologyList.innerHTML = "";
+  groups.forEach((group) => {
+    const block = document.createElement("article");
+    block.className = "methodology-block";
+
+    const title = document.createElement("h3");
+    title.textContent = group.title;
+
+    const body = document.createElement("p");
+    body.className = "methodology-copy";
+    body.textContent = group.items.map((item) => methodologyItemText(item)).join(" · ") || t("unknown");
+
+    block.append(title, body);
+    elements.methodologyList.append(block);
+  });
+}
+
+function renderProtocolSteps() {
+  const steps = [
+    t("protocolStepScenario"),
+    t("protocolStepCoding"),
+    t("protocolStepLoop"),
+    t("protocolStepExport"),
+  ];
+
+  elements.protocolSteps.innerHTML = "";
+  steps.forEach((step) => {
+    const tag = document.createElement("span");
+    tag.className = "micro-tag";
+    tag.textContent = step;
+    elements.protocolSteps.append(tag);
+  });
 }
 
 function renderProfile(profile, fallbackSummary = "") {
@@ -760,6 +876,86 @@ function signalText(signal) {
   }[signal] || signal;
 }
 
+function participantStageText(stage) {
+  return {
+    screening: t("participantStageScreening"),
+    elicitation: t("participantStageElicitation"),
+    profiling: t("participantStageProfiling"),
+    stabilized: t("participantStageStabilized"),
+  }[stage] || t("participantStageScreening");
+}
+
+function participantStageTone(stage) {
+  return {
+    screening: "neutral",
+    elicitation: "warning",
+    profiling: "neutral",
+    stabilized: "ready",
+  }[stage] || "neutral";
+}
+
+function evidenceLevelText(level) {
+  return {
+    low: t("evidenceLevelLow"),
+    medium: t("evidenceLevelMedium"),
+    high: t("evidenceLevelHigh"),
+  }[level] || t("evidenceLevelLow");
+}
+
+function evidenceLevelTone(level) {
+  return {
+    low: "warning",
+    medium: "neutral",
+    high: "ready",
+  }[level] || "neutral";
+}
+
+function participantSummaryText(stage, evidenceLevel, completion) {
+  const stageCopy = {
+    screening: t("participantSummaryScreening"),
+    elicitation: t("participantSummaryElicitation"),
+    profiling: t("participantSummaryProfiling"),
+    stabilized: t("participantSummaryStabilized"),
+  }[stage] || t("participantSummaryScreening");
+
+  return `${stageCopy} ${template("participantSummaryEvidence", {
+    level: evidenceLevelText(evidenceLevel),
+    completion: `${completion}%`,
+  })}`;
+}
+
+function participantNoteText(code) {
+  return {
+    insufficient_evidence: t("noteInsufficientEvidence"),
+    needs_scenario_answers: t("noteNeedsScenarioAnswers"),
+    promotion_trigger_present: t("notePromotionTrigger"),
+    emotion_trigger_present: t("noteEmotionTrigger"),
+    social_trigger_present: t("noteSocialTrigger"),
+    profile_consistent: t("noteProfileConsistent"),
+    longitudinal_ready: t("noteLongitudinalReady"),
+  }[code] || code;
+}
+
+function methodologyItemText(code) {
+  return {
+    scenario_judgment_items: t("methodItemScenario"),
+    compact_response_coding: t("methodItemCoding"),
+    stateful_agent_loop: t("methodItemLoop"),
+    longitudinal_profile_refresh: t("methodItemRefresh"),
+    promotion_pressure: t("measurePromotion"),
+    emotion_pull: t("measureEmotion"),
+    social_influence: t("measureSocial"),
+    reflective_control: t("measureControl"),
+    participant_profile: t("outputProfile"),
+    theory_trace: t("outputTheory"),
+    risk_trajectory: t("outputTrajectory"),
+    group_pattern_aggregation: t("outputAggregation"),
+    non_diagnostic_use: t("safeguardNonDiagnostic"),
+    profile_persistence_after_reset: t("safeguardPersistence"),
+    distinct_user_normalization: t("safeguardNormalization"),
+  }[code] || code;
+}
+
 function theoryName(theory) {
   return {
     dual_process: t("theoryDualProcess"),
@@ -846,12 +1042,12 @@ function renderAdminConsole() {
 
 function renderAdminSummary(users) {
   const profiled = users.filter((user) => Boolean(user.profile)).length;
-  const aiConfigured = users.filter(adminAiReady).length;
+  const exportReady = users.filter(adminExportReady).length;
   const attention = users.filter(needsAttention).length;
 
   elements.adminTotalUsers.textContent = users.length;
   elements.adminProfiledUsers.textContent = profiled;
-  elements.adminAiConfiguredCount.textContent = aiConfigured;
+  elements.adminAiConfiguredCount.textContent = exportReady;
   elements.adminAttentionCount.textContent = attention;
 }
 
@@ -966,8 +1162,8 @@ function renderAdminUsers(users) {
     [
       [t("riskScore"), formatRiskScore(user.riskScore)],
       [t("messageCount"), user.messageCount || 0],
-      [t("adminProfileStatus"), user.profile ? t("adminStatusProfiled") : t("adminStatusNoProfile")],
-      [t("adminAiStatus"), adminAiReady(user) ? t("configured") : t("apiKeyMissing")],
+      [t("participantStageLabel"), participantStageText(adminStudyStage(user))],
+      [t("completionLabel"), `${adminCompletionScore(user)}%`],
     ].forEach(([labelText, valueText]) => {
       const item = document.createElement("div");
       item.className = "admin-metric-pill";
@@ -1073,6 +1269,8 @@ function buildAdminBadges(user) {
     user.isAdmin ? { text: t("adminBadgeAdmin"), tone: "neutral" } : null,
     adminAiReady(user) ? { text: t("adminBadgeAiReady"), tone: "success" } : { text: t("adminBadgeAiMissing"), tone: "warning" },
     user.profile ? { text: t("adminBadgeProfiled"), tone: "success" } : { text: t("adminBadgeNoProfile"), tone: "neutral" },
+    { text: participantStageText(adminStudyStage(user)), tone: participantStageTone(adminStudyStage(user)) },
+    { text: evidenceLevelText(adminEvidenceLevel(user)), tone: evidenceLevelTone(adminEvidenceLevel(user)) },
     { text: riskBandText(user.riskScore), tone: riskBandTone(user.riskScore) },
   ].filter(Boolean);
 }
@@ -1099,11 +1297,42 @@ function isHighRisk(user) {
 }
 
 function needsAttention(user) {
-  return isHighRisk(user) || !adminAiReady(user) || !user.profile;
+  return isHighRisk(user) || !adminAiReady(user) || !user.profile || adminEvidenceLevel(user) === "low";
 }
 
 function adminAiReady(user) {
   return Boolean(user.aiSettings?.hasApiKey && user.aiSettings?.requestUrl && user.aiSettings?.model);
+}
+
+function adminStudyStage(user) {
+  if (!user.messageCount) return "screening";
+  if (!user.profile) return user.messageCount >= 3 ? "elicitation" : "screening";
+  if (adminCompletionScore(user) >= 75) return "stabilized";
+  return "profiling";
+}
+
+function adminEvidenceLevel(user) {
+  const completion = adminCompletionScore(user);
+  if (completion >= 70) return "high";
+  if (completion >= 40) return "medium";
+  return "low";
+}
+
+function adminCompletionScore(user) {
+  const score = clampValue(
+    (user.messageCount || 0) * 8
+      + (user.profile ? 28 : 0)
+      + (user.profileSummary ? 12 : 0)
+      + ((user.profile?.evidence || []).length || 0) * 6
+      + ((user.profile?.triggers || []).length || 0) * 5,
+    0,
+    100,
+  );
+  return score;
+}
+
+function adminExportReady(user) {
+  return Boolean(user.profile && adminCompletionScore(user) >= 55);
 }
 
 function compareNumbers(left, right) {
@@ -1160,6 +1389,9 @@ function exportAdminUsers(users) {
       "last_login_at",
       "created_at",
       "profile_summary",
+      "study_stage",
+      "evidence_level",
+      "completion_score",
     ],
     ...users.map((user) => [
       user.id,
@@ -1173,10 +1405,25 @@ function exportAdminUsers(users) {
       user.lastLoginAt || "",
       user.createdAt || "",
       user.profileSummary || "",
+      adminStudyStage(user),
+      adminEvidenceLevel(user),
+      adminCompletionScore(user),
     ]),
   ];
   const csv = `\uFEFF${rows.map((row) => row.map(escapeCsv).join(",")).join("\r\n")}`;
   downloadText(`ai-isp-admin-${Date.now()}.csv`, csv, "text/csv;charset=utf-8");
+}
+
+async function exportResearchPackage() {
+  setBusy(elements.exportStudyButton, true);
+  try {
+    const result = await api("/research-export");
+    downloadText(result.filename || `ai-isp-study-${Date.now()}.json`, JSON.stringify(result, null, 2), "application/json");
+  } catch (error) {
+    alert(`${t("requestFailed")}: ${error.message}`);
+  } finally {
+    setBusy(elements.exportStudyButton, false);
+  }
 }
 
 async function deleteUser(userId) {
@@ -1238,9 +1485,13 @@ function applyLanguage() {
   elements.messageInput.placeholder = t("chatPlaceholder");
   elements.authSubmit.textContent = t(state.mode);
   renderAiStatus(state.aiConfigured);
+  renderProtocolSteps();
   elements.adminSortSelect.value = state.adminSort;
 
   if (state.lastInsights) {
+    renderStudyMeta(state.lastInsights.studyMeta || {});
+    renderParticipant(state.lastInsights.participant || {});
+    renderMethodology(state.lastInsights.methodology || {});
     renderProfile(state.lastInsights.currentUserProfile, state.lastInsights.summary);
     renderAgentic(state.lastInsights.agentic);
     renderTheory(state.lastInsights.theory);
@@ -1331,6 +1582,11 @@ function formatTime(value) {
   }).format(new Date(value));
 }
 
+function formatMaybeDate(value) {
+  if (!value) return t("unknown");
+  return formatAdminDate(value);
+}
+
 function formatAdminDate(value) {
   if (!value) return t("unknown");
   return new Intl.DateTimeFormat(document.documentElement.lang, {
@@ -1355,6 +1611,12 @@ function escapeCsv(value) {
   const text = String(value ?? "");
   if (/[",\r\n]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
   return text;
+}
+
+function clampValue(value, min, max) {
+  const number = Number(value || 0);
+  if (!Number.isFinite(number)) return min;
+  return Math.max(min, Math.min(max, Math.round(number)));
 }
 
 function downloadText(filename, text, type) {

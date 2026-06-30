@@ -49,16 +49,31 @@
           <p data-i18n="heroBody">
             面向存在冲动消费行为的用户，通过对话提取触发因素、情绪状态、购买类别和干预偏好，并汇总共同特征。
           </p>
+          <div class="hero-metadata">
+            <span class="meta-pill" data-i18n="heroMetaProtocol"
+              >Protocol: AI-ISP-SJT-2026.06</span
+            >
+            <span class="meta-pill" data-i18n="heroMetaOutputs"
+              >Outputs: profile, theory trace, risk trajectory</span
+            >
+            <span class="meta-pill" data-i18n="heroMetaLongitudinal"
+              >Longitudinal participant memory</span
+            >
+          </div>
           <div class="hero-highlights">
             <article class="hero-card">
-              <p class="eyebrow" data-i18n="contributionAgenticEyebrow">Agentic AI</p>
+              <p class="eyebrow" data-i18n="contributionAgenticEyebrow">
+                Agentic AI
+              </p>
               <h3 data-i18n="contributionAgenticTitle">状态化代理式干预</h3>
               <p data-i18n="contributionAgenticBody">
                 把用户对话转成可持续追踪的冲动状态，并自动选择下一步评估或干预动作。
               </p>
             </article>
             <article class="hero-card">
-              <p class="eyebrow" data-i18n="contributionTheoryEyebrow">Theory Stack</p>
+              <p class="eyebrow" data-i18n="contributionTheoryEyebrow">
+                Theory Stack
+              </p>
               <h3 data-i18n="contributionTheoryTitle">行为理论驱动</h3>
               <p data-i18n="contributionTheoryBody">
                 用双系统、延迟折扣和实施意图等理论解释为什么这些干预可能有效。
@@ -72,33 +87,195 @@
               </p>
             </article>
           </div>
+          <div class="research-strip">
+            <article class="research-strip-card">
+              <span class="strip-label" data-i18n="studyProtocolTitle"
+                >研究协议</span
+              >
+              <p data-i18n="studyProtocolBody">
+                使用情境判断题、紧凑编码回答和代理式追问，把一次对话转成可复核的行为证据。
+              </p>
+            </article>
+            <article class="research-strip-card">
+              <span class="strip-label" data-i18n="studyOutputsTitle"
+                >研究输出</span
+              >
+              <p data-i18n="studyOutputsBody">
+                每位参与者都会得到结构化画像、理论映射、风险轨迹和可导出的研究包。
+              </p>
+            </article>
+            <article class="research-strip-card">
+              <span class="strip-label" data-i18n="studySafeguardsTitle"
+                >研究边界</span
+              >
+              <p data-i18n="studySafeguardsBody">
+                系统只做行为层面的研究分析，不做临床诊断；聚合统计按不同用户归一化。
+              </p>
+            </article>
+          </div>
         </div>
 
         <form class="auth-card" id="authForm">
           <div class="tabs" role="tablist" aria-label="Auth mode">
-            <button type="button" class="tab active" data-mode="login" data-i18n="login">登录</button>
-            <button type="button" class="tab" data-mode="register" data-i18n="register">注册</button>
+            <button
+              type="button"
+              class="tab active"
+              data-mode="login"
+              data-i18n="login"
+            >
+              登录
+            </button>
+            <button
+              type="button"
+              class="tab"
+              data-mode="register"
+              data-i18n="register"
+            >
+              注册
+            </button>
           </div>
           <label>
             <span data-i18n="userId">用户 ID</span>
-            <input id="userIdInput" autocomplete="username" placeholder="user_001" required />
+            <input
+              id="userIdInput"
+              autocomplete="username"
+              placeholder="user_001"
+              required
+            />
           </label>
           <label>
             <span data-i18n="password">密码</span>
-            <input id="passwordInput" type="password" autocomplete="current-password" minlength="4" required />
+            <input
+              id="passwordInput"
+              type="password"
+              autocomplete="current-password"
+              minlength="4"
+              required
+            />
           </label>
-          <button class="primary-button" type="submit" id="authSubmit" data-i18n="login">登录</button>
+          <button
+            class="primary-button"
+            type="submit"
+            id="authSubmit"
+            data-i18n="login"
+          >
+            登录
+          </button>
           <p class="form-message" id="authMessage"></p>
         </form>
       </section>
 
       <section class="workspace hidden" id="workspace">
+        <section class="research-overview">
+          <header class="overview-header">
+            <div>
+              <p class="eyebrow" data-i18n="researchOverviewEyebrow">
+                Study Console
+              </p>
+              <h2 data-i18n="researchOverviewTitle">
+                研究协议与参与者会话总览
+              </h2>
+            </div>
+            <span class="status-pill neutral" id="studyProtocolId"
+              >AI-ISP-SJT-2026.06</span
+            >
+          </header>
+
+          <div class="overview-grid">
+            <article class="overview-card">
+              <p class="eyebrow" data-i18n="studyObjectiveEyebrow">Objective</p>
+              <h3 data-i18n="studyObjectiveTitle">研究目标</h3>
+              <p class="overview-copy" data-i18n="studyObjectiveBody">
+                通过购物情境和后续追问，捕捉促销压力、情绪补偿、社交影响和预算控制之间的动态关系。
+              </p>
+            </article>
+
+            <article class="overview-card">
+              <p class="eyebrow" data-i18n="studyProtocolStackEyebrow">
+                Protocol
+              </p>
+              <h3 data-i18n="studyProtocolStackTitle">协议栈</h3>
+              <p class="overview-copy" data-i18n="studyProtocolStackBody">
+                从情境判断到状态化干预，再到画像刷新和聚合统计，形成一条可复核的研究链路。
+              </p>
+              <div class="protocol-steps" id="protocolSteps"></div>
+            </article>
+
+            <article class="overview-card">
+              <p class="eyebrow" data-i18n="participantStatusEyebrow">
+                Participant
+              </p>
+              <h3 data-i18n="participantStatusTitle">参与者状态</h3>
+              <p
+                class="overview-copy"
+                id="participantSummary"
+                data-i18n="participantStatusBody"
+              >
+                当前会话还没有足够证据，系统会继续用情境题收集行为线索。
+              </p>
+              <div class="overview-stats">
+                <div class="mini-stat">
+                  <span data-i18n="participantStageLabel">阶段</span>
+                  <strong id="participantStageValue">-</strong>
+                </div>
+                <div class="mini-stat">
+                  <span data-i18n="evidenceLevelLabel">证据等级</span>
+                  <strong id="participantEvidenceValue">-</strong>
+                </div>
+                <div class="mini-stat">
+                  <span data-i18n="completionLabel">完成度</span>
+                  <strong id="participantCompletionValue">0%</strong>
+                </div>
+                <div class="mini-stat">
+                  <span data-i18n="userTurnsLabel">用户轮次</span>
+                  <strong id="participantTurnsValue">0</strong>
+                </div>
+                <div class="mini-stat">
+                  <span data-i18n="scenarioAnswersLabel">情境回答</span>
+                  <strong id="participantScenarioValue">0</strong>
+                </div>
+                <div class="mini-stat">
+                  <span data-i18n="lastUpdatedLabel">最近更新</span>
+                  <strong id="participantUpdatedValue">-</strong>
+                </div>
+              </div>
+            </article>
+
+            <article class="overview-card">
+              <p class="eyebrow" data-i18n="researchOutputEyebrow">Output</p>
+              <h3 data-i18n="researchOutputTitle">研究输出</h3>
+              <p class="overview-copy" data-i18n="researchOutputBody">
+                导出当前参与者的画像、消息、理论映射和可视化所需元数据，便于复核和归档。
+              </p>
+              <div class="output-meta">
+                <span class="micro-tag" id="studyExportStatus">-</span>
+                <span class="micro-tag" id="studyLastUpdated">-</span>
+              </div>
+              <button
+                class="primary-button"
+                type="button"
+                id="exportStudyButton"
+                data-i18n="exportStudy"
+              >
+                导出研究包
+              </button>
+            </article>
+          </div>
+        </section>
+
         <aside class="sidebar">
           <div>
             <p class="eyebrow" data-i18n="currentUser">当前用户</p>
             <h2 id="currentUser">-</h2>
           </div>
-          <button class="ghost-button" type="button" id="logoutButton" data-i18n="logout">退出</button>
+          <button
+            class="ghost-button"
+            type="button"
+            id="logoutButton"
+            data-i18n="logout"
+          >
+            退出
+          </button>
 
           <div class="metric-grid">
             <div>
@@ -123,7 +300,10 @@
             <h3 data-i18n="aiSettings">AI 设置</h3>
             <label>
               <span data-i18n="requestUrl">请求 URL</span>
-              <input id="requestUrlInput" placeholder="https://api.deepseek.com" />
+              <input
+                id="requestUrlInput"
+                placeholder="https://api.deepseek.com"
+              />
             </label>
             <label>
               <span data-i18n="model">模型</span>
@@ -131,9 +311,19 @@
             </label>
             <label>
               <span data-i18n="apiKey">API Key</span>
-              <input id="apiKeyInput" type="text" placeholder="sk-..." autocomplete="off" />
+              <input
+                id="apiKeyInput"
+                type="text"
+                placeholder="sk-..."
+                autocomplete="off"
+              />
             </label>
-            <button class="primary-button" type="submit" id="saveAiSettingsButton" data-i18n="saveSettings">
+            <button
+              class="primary-button"
+              type="submit"
+              id="saveAiSettingsButton"
+              data-i18n="saveSettings"
+            >
               保存设置
             </button>
             <p class="form-message neutral" id="aiSettingsMessage"></p>
@@ -141,7 +331,9 @@
 
           <div class="profile-block">
             <h3 data-i18n="userProfile">用户画像</h3>
-            <p id="profileSummary" data-i18n="profilePending">画像将在聊天后生成。</p>
+            <p id="profileSummary" data-i18n="profilePending">
+              画像将在聊天后生成。
+            </p>
             <div class="tag-group" id="profileTags"></div>
           </div>
         </aside>
@@ -153,26 +345,73 @@
               <h2 data-i18n="chatTitle">理性消费聊天</h2>
             </div>
             <div class="chat-actions">
-              <button class="ghost-button small-button" type="button" id="clearContextButton" data-i18n="clearContext">
+              <span class="status-pill neutral" id="sessionStagePill">-</span>
+              <span class="status-pill neutral" id="sessionEvidencePill"
+                >-</span
+              >
+              <button
+                class="ghost-button small-button"
+                type="button"
+                id="clearContextButton"
+                data-i18n="clearContext"
+              >
                 清除上下文
               </button>
-              <span class="status-pill" id="aiStatus" data-i18n="checkingAi">检查模型配置中</span>
+              <span class="status-pill" id="aiStatus" data-i18n="checkingAi"
+                >检查模型配置中</span
+              >
             </div>
           </header>
 
-          <div class="messages" id="messages"></div>
+          <div class="messages-shell">
+            <div class="protocol-cue">
+              <strong data-i18n="protocolCueTitle">当前协议提示</strong>
+              <p id="protocolCueText" data-i18n="protocolCueBody">
+                优先让参与者回答情境题，再根据线索进入打断、重构或计划阶段。
+              </p>
+            </div>
+            <div class="messages" id="messages"></div>
+          </div>
 
           <form class="composer" id="chatForm">
-            <input type="file" id="fileInput" class="file-input-hidden" accept=".txt,.md,.csv,.json,.xml,.html,.htm,.css,.js,.ts,.jsx,.tsx,.py,.java,.c,.cpp,.h,.hpp,.rs,.go,.rb,.php,.sql,.yaml,.yml,.toml,.ini,.cfg,.log,.env,.sh,.bat,.ps1,.psm1,.tex,.rst,.org,.text" />
+            <input
+              type="file"
+              id="fileInput"
+              class="file-input-hidden"
+              accept=".txt,.md,.csv,.json,.xml,.html,.htm,.css,.js,.ts,.jsx,.tsx,.py,.java,.c,.cpp,.h,.hpp,.rs,.go,.rb,.php,.sql,.yaml,.yml,.toml,.ini,.cfg,.log,.env,.sh,.bat,.ps1,.psm1,.tex,.rst,.org,.text"
+            />
             <div class="composer-row">
               <textarea id="messageInput" rows="2" maxlength="2000"></textarea>
-              <button type="button" class="attach-button" id="attachButton" title="Attach file" aria-label="Attach a text file">📎</button>
-              <button class="primary-button" type="submit" id="sendButton" data-i18n="send">发送</button>
+              <button
+                type="button"
+                class="attach-button"
+                id="attachButton"
+                title="Attach file"
+                aria-label="Attach a text file"
+              >
+                📎
+              </button>
+              <button
+                class="primary-button"
+                type="submit"
+                id="sendButton"
+                data-i18n="send"
+              >
+                发送
+              </button>
             </div>
             <div class="attachment-area">
               <div class="attachment-preview hidden" id="attachmentPreview">
                 <span class="attachment-name" id="attachmentName"></span>
-                <button type="button" class="attachment-remove" id="attachmentRemove" title="Remove file" aria-label="Remove attached file">✕</button>
+                <button
+                  type="button"
+                  class="attachment-remove"
+                  id="attachmentRemove"
+                  title="Remove file"
+                  aria-label="Remove attached file"
+                >
+                  ✕
+                </button>
               </div>
             </div>
           </form>
@@ -183,7 +422,47 @@
             <section class="research-card">
               <div class="research-card-head">
                 <div>
-                  <p class="eyebrow" data-i18n="agenticPanelEyebrow">Agentic AI</p>
+                  <p class="eyebrow" data-i18n="methodologyCardEyebrow">
+                    Methodology
+                  </p>
+                  <h2 data-i18n="methodologyCardTitle">方法学配置</h2>
+                </div>
+              </div>
+              <p class="research-summary" data-i18n="methodologyCardBody">
+                展示当前研究协议采用的测量维度、输出形式和保护边界。
+              </p>
+              <div class="methodology-grid" id="methodologyList"></div>
+            </section>
+
+            <section class="research-card">
+              <div class="research-card-head">
+                <div>
+                  <p class="eyebrow" data-i18n="evidenceCardEyebrow">
+                    Evidence
+                  </p>
+                  <h2 data-i18n="evidenceCardTitle">证据链状态</h2>
+                </div>
+                <span class="status-pill neutral" id="evidenceLevelPill"
+                  >-</span
+                >
+              </div>
+              <p
+                class="research-summary"
+                id="evidenceSummary"
+                data-i18n="evidenceCardBody"
+              >
+                系统会根据回答轮次、情境题编码和触发信号覆盖度评估证据质量。
+              </p>
+              <div class="micro-tag-row" id="evidenceSignals"></div>
+              <ul class="bullet-list" id="evidenceNotes"></ul>
+            </section>
+
+            <section class="research-card">
+              <div class="research-card-head">
+                <div>
+                  <p class="eyebrow" data-i18n="agenticPanelEyebrow">
+                    Agentic AI
+                  </p>
                   <h2 data-i18n="agenticPanelTitle">代理式干预环</h2>
                 </div>
                 <span class="status-pill neutral" id="agenticStagePill">-</span>
@@ -214,8 +493,12 @@
             <section class="research-card">
               <div class="research-card-head">
                 <div>
-                  <p class="eyebrow" data-i18n="visualizationPanelEyebrow">Visualization</p>
-                  <h2 data-i18n="visualizationPanelTitle">新型可视化与界面贡献</h2>
+                  <p class="eyebrow" data-i18n="visualizationPanelEyebrow">
+                    Visualization
+                  </p>
+                  <h2 data-i18n="visualizationPanelTitle">
+                    新型可视化与界面贡献
+                  </h2>
                 </div>
               </div>
               <div class="timeline-shell">
@@ -243,66 +526,173 @@
             <h1 data-i18n="adminTitle">管理员控制台</h1>
           </div>
           <div class="admin-actions">
-            <button class="ghost-button" type="button" id="refreshAdminButton" data-i18n="refresh">刷新</button>
-            <button class="ghost-button" type="button" id="adminLogoutButton" data-i18n="logout">退出</button>
+            <button
+              class="ghost-button"
+              type="button"
+              id="refreshAdminButton"
+              data-i18n="refresh"
+            >
+              刷新
+            </button>
+            <button
+              class="ghost-button"
+              type="button"
+              id="adminLogoutButton"
+              data-i18n="logout"
+            >
+              退出
+            </button>
           </div>
         </header>
         <section class="admin-summary-grid" id="adminSummaryGrid">
           <article class="admin-summary-card">
-            <span data-i18n="userCount">用户数</span>
+            <span data-i18n="adminSampleSize">样本量</span>
             <strong id="adminTotalUsers">0</strong>
-            <small data-i18n="adminTotalUsersHint">全部账户</small>
+            <small data-i18n="adminSampleSizeHint">当前研究账户总数</small>
           </article>
           <article class="admin-summary-card">
-            <span data-i18n="profileCount">画像数</span>
+            <span data-i18n="adminProfiledSample">已画像样本</span>
             <strong id="adminProfiledUsers">0</strong>
-            <small data-i18n="adminProfiledUsersHint">已有行为画像</small>
+            <small data-i18n="adminProfiledSampleHint"
+              >具有结构化行为画像</small
+            >
           </article>
           <article class="admin-summary-card">
-            <span data-i18n="adminAiConfigured">AI 已配置</span>
+            <span data-i18n="adminExportReady">可导出样本</span>
             <strong id="adminAiConfiguredCount">0</strong>
-            <small data-i18n="adminAiConfiguredHint">可直接进入测评</small>
+            <small data-i18n="adminExportReadyHint">完成度和证据等级达标</small>
           </article>
           <article class="admin-summary-card">
-            <span data-i18n="adminNeedsAttention">待关注</span>
+            <span data-i18n="adminFollowUpNeeded">需跟进样本</span>
             <strong id="adminAttentionCount">0</strong>
-            <small data-i18n="adminAttentionHint">高风险或配置缺失</small>
+            <small data-i18n="adminFollowUpNeededHint"
+              >高风险、低证据或配置缺失</small
+            >
           </article>
         </section>
 
         <section class="admin-toolbar">
           <label class="admin-search">
-            <span class="visually-hidden" data-i18n="adminSearch">搜索用户</span>
-            <input id="adminSearchInput" data-i18n-placeholder="adminSearchPlaceholder" placeholder="搜索用户、模型、画像摘要..." />
+            <span class="visually-hidden" data-i18n="adminSearch"
+              >搜索用户</span
+            >
+            <input
+              id="adminSearchInput"
+              data-i18n-placeholder="adminSearchPlaceholder"
+              placeholder="搜索用户、模型、画像摘要..."
+            />
           </label>
-          <div class="admin-filter-pills" id="adminFilterPills" role="group" aria-label="Admin filters">
-            <button type="button" class="admin-filter-pill active" data-filter="all" data-i18n="adminFilterAll">全部</button>
-            <button type="button" class="admin-filter-pill" data-filter="attention" data-i18n="adminFilterAttention">待关注</button>
-            <button type="button" class="admin-filter-pill" data-filter="high_risk" data-i18n="adminFilterHighRisk">高风险</button>
-            <button type="button" class="admin-filter-pill" data-filter="ai_missing" data-i18n="adminFilterAiMissing">未配 AI</button>
-            <button type="button" class="admin-filter-pill" data-filter="profiled" data-i18n="adminFilterProfiled">有画像</button>
+          <div
+            class="admin-filter-pills"
+            id="adminFilterPills"
+            role="group"
+            aria-label="Admin filters"
+          >
+            <button
+              type="button"
+              class="admin-filter-pill active"
+              data-filter="all"
+              data-i18n="adminFilterAll"
+            >
+              全部
+            </button>
+            <button
+              type="button"
+              class="admin-filter-pill"
+              data-filter="attention"
+              data-i18n="adminFilterAttention"
+            >
+              待关注
+            </button>
+            <button
+              type="button"
+              class="admin-filter-pill"
+              data-filter="high_risk"
+              data-i18n="adminFilterHighRisk"
+            >
+              高风险
+            </button>
+            <button
+              type="button"
+              class="admin-filter-pill"
+              data-filter="ai_missing"
+              data-i18n="adminFilterAiMissing"
+            >
+              未配 AI
+            </button>
+            <button
+              type="button"
+              class="admin-filter-pill"
+              data-filter="profiled"
+              data-i18n="adminFilterProfiled"
+            >
+              有画像
+            </button>
           </div>
           <label class="admin-sort">
             <span data-i18n="adminSort">排序</span>
             <select id="adminSortSelect">
-              <option value="recent_login" data-i18n="adminSortRecentLogin">最近登录</option>
-              <option value="risk_desc" data-i18n="adminSortRiskDesc">风险从高到低</option>
-              <option value="messages_desc" data-i18n="adminSortMessagesDesc">消息从多到少</option>
-              <option value="created_desc" data-i18n="adminSortCreatedDesc">最近创建</option>
+              <option value="recent_login" data-i18n="adminSortRecentLogin">
+                最近登录
+              </option>
+              <option value="risk_desc" data-i18n="adminSortRiskDesc">
+                风险从高到低
+              </option>
+              <option value="messages_desc" data-i18n="adminSortMessagesDesc">
+                消息从多到少
+              </option>
+              <option value="created_desc" data-i18n="adminSortCreatedDesc">
+                最近创建
+              </option>
             </select>
           </label>
           <div class="admin-toolbar-actions">
-            <button class="ghost-button" type="button" id="exportFilteredButton" data-i18n="adminExportFiltered">导出当前结果</button>
+            <button
+              class="ghost-button"
+              type="button"
+              id="exportFilteredButton"
+              data-i18n="adminExportFiltered"
+            >
+              导出当前结果
+            </button>
           </div>
         </section>
 
         <section class="admin-selection-bar hidden" id="adminSelectionBar">
           <p id="adminSelectionText">0 selected</p>
           <div class="admin-selection-actions">
-            <button class="ghost-button" type="button" id="selectVisibleButton" data-i18n="adminSelectVisible">选择当前结果</button>
-            <button class="ghost-button" type="button" id="clearSelectedProfilesButton" data-i18n="adminClearSelected">清空所选画像</button>
-            <button class="ghost-button" type="button" id="exportSelectedButton" data-i18n="adminExportSelected">导出所选</button>
-            <button class="ghost-button" type="button" id="clearSelectionButton" data-i18n="adminClearSelection">取消选择</button>
+            <button
+              class="ghost-button"
+              type="button"
+              id="selectVisibleButton"
+              data-i18n="adminSelectVisible"
+            >
+              选择当前结果
+            </button>
+            <button
+              class="ghost-button"
+              type="button"
+              id="clearSelectedProfilesButton"
+              data-i18n="adminClearSelected"
+            >
+              清空所选画像
+            </button>
+            <button
+              class="ghost-button"
+              type="button"
+              id="exportSelectedButton"
+              data-i18n="adminExportSelected"
+            >
+              导出所选
+            </button>
+            <button
+              class="ghost-button"
+              type="button"
+              id="clearSelectionButton"
+              data-i18n="adminClearSelection"
+            >
+              取消选择
+            </button>
           </div>
         </section>
 

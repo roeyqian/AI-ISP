@@ -10,9 +10,11 @@ const TEXT_FILE_TYPES = new Set([
   "text/", "application/json", "application/xml", "application/javascript",
   "application/typescript", "text/x-", "application/x-",
 ]);
-const ADMIN_ID = "admin";
-const ADMIN_PASSWORD = "123456";
-const ADMIN_SALT = "ai_isp_admin_static_salt_v1";
+const DEFAULT_ADMIN_ID = "admin";
+const DEFAULT_ADMIN_PASSWORD = "123456";
+const DEFAULT_ADMIN_SALT = "ai_isp_admin_static_salt_v1";
+const SCENARIO_COMPACT_ANSWER_PATTERN =
+  /^\s*(?:(?:[1-9一二三四五六七八九]\s*)?[A-Da-d][\s,，;；、]*){1,8}\s*$/;
 
 const LANGUAGES = {
   zh: "Simplified Chinese",
@@ -63,6 +65,7 @@ async function handleApi(request, env, url) {
   if (route === "DELETE /api/history") return clearHistory(request, env);
   if (route === "POST /api/chat") return chat(request, env);
   if (route === "GET /api/insights") return insights(request, env);
+  if (route === "GET /api/research-export") return researchExport(request, env);
   if (route === "GET /api/ai-settings") return getAiSettings(request, env);
   if (route === "PUT /api/ai-settings") return saveAiSettings(request, env);
   if (route === "GET /api/admin/users") return adminUsers(request, env);
@@ -85,7 +88,7 @@ async function register(request, env) {
     return json({ error: "请输入用户 ID 和至少 4 位密码" }, 400);
   }
 
-  if (userId === ADMIN_ID) {
+  if (isAdminId(userId, env)) {
     return json({ error: "该用户 ID 不允许注册" }, 400);
   }
 
@@ -103,7 +106,7 @@ async function register(request, env) {
     .run();
 
   const session = await createSession(env, userId);
-  return json({ user: publicUser({ id: userId }), token: session.token, expiresAt: session.expiresAt }, 201);
+  return json({ user: publicUser({ id: userId }, env), token: session.token, expiresAt: session.expiresAt }, 201);
 }
 
 async function login(request, env) {
@@ -128,7 +131,7 @@ async function login(request, env) {
     .run();
 
   const session = await createSession(env, userId);
-  return json({ user: publicUser(user), token: session.token, expiresAt: session.expiresAt });
+  return json({ user: publicUser(user, env), token: session.token, expiresAt: session.expiresAt });
 }
 
 async function logout(request, env) {
@@ -139,7 +142,7 @@ async function logout(request, env) {
 
 async function me(request, env) {
   const user = await requireUser(request, env);
-  return json({ user: publicUser(user) });
+  return json({ user: publicUser(user, env) });
 }
 
 async function history(request, env) {
@@ -215,7 +218,10 @@ async function insights(request, env) {
     `SELECT
       (SELECT COUNT(*) FROM users) AS total_users,
       (SELECT COUNT(*) FROM user_profiles) AS profiled_users,
-      (SELECT COUNT(*) FROM messages) AS total_messages`,
+      (SELECT COUNT(*) FROM messages) AS total_messages,
+      (SELECT COUNT(*) FROM user_profiles WHERE risk_score >= 70) AS high_risk_users,
+      (SELECT COUNT(*) FROM common_features) AS shared_feature_rows,
+      (SELECT MAX(updated_at) FROM user_profiles) AS latest_profile_at`,
   ).first();
 
   const features = await env.db.prepare(
@@ -232,6 +238,10 @@ async function insights(request, env) {
   const agentic = buildAgenticInsights(currentUserProfile, recentMessages);
   const theory = buildTheoryInsights(currentUserProfile, recentMessages);
   const visualization = buildVisualizationInsights(currentUserProfile, recentMessages);
+  const participant = buildParticipantResearch(currentUserProfile, recentMessages, agentic);
+  participant.profileUpdatedAt = profile?.updated_at || null;
+  const studyMeta = buildStudyMeta(totals, participant, profile?.updated_at || recentMessages.at(-1)?.created_at || null);
+  const methodology = buildMethodologyOverview();
 
   return json({
     currentUserProfile,
@@ -243,6 +253,67 @@ async function insights(request, env) {
     agentic,
     theory,
     visualization,
+    studyMeta,
+    participant,
+    methodology,
+  });
+}
+
+async function researchExport(request, env) {
+  const user = await requireUser(request, env);
+
+  const profileRow = await env.db.prepare(
+    "SELECT profile_json, summary, risk_score, updated_at FROM user_profiles WHERE user_id = ?",
+  )
+    .bind(user.id)
+    .first();
+  const totals = await env.db.prepare(
+    `SELECT
+      (SELECT COUNT(*) FROM users) AS total_users,
+      (SELECT COUNT(*) FROM user_profiles) AS profiled_users,
+      (SELECT COUNT(*) FROM messages) AS total_messages,
+      (SELECT COUNT(*) FROM user_profiles WHERE risk_score >= 70) AS high_risk_users,
+      (SELECT COUNT(*) FROM common_features) AS shared_feature_rows,
+      (SELECT MAX(updated_at) FROM user_profiles) AS latest_profile_at`,
+  ).first();
+  const messagesResult = await env.db.prepare(
+    "SELECT role, content, created_at FROM messages WHERE user_id = ? ORDER BY created_at ASC LIMIT 200",
+  )
+    .bind(user.id)
+    .all();
+  const commonFeaturesResult = await env.db.prepare(
+    "SELECT category, feature, count, last_seen_at FROM common_features ORDER BY count DESC, last_seen_at DESC LIMIT 30",
+  ).all();
+
+  const messages = messagesResult.results || [];
+  const currentUserProfile = profileRow?.profile_json ? parseJson(profileRow.profile_json, null) : null;
+  const agentic = buildAgenticInsights(currentUserProfile, messages);
+  const theory = buildTheoryInsights(currentUserProfile, messages);
+  const visualization = buildVisualizationInsights(currentUserProfile, messages);
+  const participant = buildParticipantResearch(currentUserProfile, messages, agentic);
+  participant.profileUpdatedAt = profileRow?.updated_at || null;
+  const studyMeta = buildStudyMeta(totals, participant, profileRow?.updated_at || messages.at(-1)?.created_at || null);
+  const methodology = buildMethodologyOverview();
+  const generatedAt = new Date().toISOString();
+
+  return json({
+    filename: `ai-isp-study-${user.id}-${generatedAt.replace(/[:.]/g, "-")}.json`,
+    generatedAt,
+    protocolId: studyMeta.protocolId,
+    user: publicUser(user, env),
+    participant,
+    studyMeta,
+    methodology,
+    profile: currentUserProfile,
+    summary: profileRow?.summary || "",
+    riskScore: profileRow?.risk_score === -1 ? null : profileRow?.risk_score || 0,
+    messages,
+    commonFeatures: commonFeaturesResult.results || [],
+    insights: {
+      agentic,
+      theory,
+      visualization,
+    },
   });
 }
 
@@ -307,7 +378,7 @@ async function adminUsers(request, env) {
   return json({
     users: (rows.results || []).map((row) => ({
       id: row.id,
-      isAdmin: row.id === ADMIN_ID,
+      isAdmin: isAdminId(row.id, env),
       createdAt: row.created_at,
       lastLoginAt: row.last_login_at,
       messageCount: row.message_count || 0,
@@ -329,7 +400,7 @@ async function adminDeleteUser(request, env, userId) {
   const normalized = normalizeUserId(userId);
 
   if (!normalized) return json({ error: "用户 ID 无效" }, 400);
-  if (normalized === ADMIN_ID) return json({ error: "不能删除管理员账户" }, 400);
+  if (isAdminId(normalized, env)) return json({ error: "不能删除管理员账户" }, 400);
 
   await env.db.prepare("DELETE FROM messages WHERE user_id = ?").bind(normalized).run();
   await env.db.prepare("DELETE FROM user_profiles WHERE user_id = ?").bind(normalized).run();
@@ -631,8 +702,6 @@ function assessConsumptionRelevance(messages) {
     /(测评|测试|问卷|心理|评估|开始|题目|情境|场景|做题|判断|test|assessment|quiz|questionnaire|start|scenario|situation|diagnóstico|evaluación|cuestionario|テスト|診断|質問|シナリオ)/i;
   const scenarioPromptPattern =
     /(情境|场景|选项|请选择|回答|限时|预算|折扣|推荐|1A|2B|scenario|situation|option|choose|answer|discount|budget|recommendation|escenario|opción|responde|シナリオ|選択肢|回答)/i;
-  const compactAnswerPattern =
-    /^\s*(?:(?:[1-9一二三四五六七八九]\s*)?[A-Da-d][\s,，;；、]*){1,8}\s*$/;
   const signalCount = [consumptionPattern.test(joined), emotionPattern.test(joined) && consumptionPattern.test(joined)].filter(Boolean).length;
   const meaningfulChars = latest.replace(/\s|[0-9.,，。!?！？;；:：'"“”‘’()[\]{}-]/g, "").length;
 
@@ -644,7 +713,7 @@ function assessConsumptionRelevance(messages) {
     return { status: "relevant", reason: "The user is asking to start or continue a situational assessment." };
   }
 
-  if (compactAnswerPattern.test(latest) && scenarioPromptPattern.test(recentAssistant)) {
+  if (SCENARIO_COMPACT_ANSWER_PATTERN.test(latest) && scenarioPromptPattern.test(recentAssistant)) {
     return { status: "relevant", reason: "The user answered prior consumption-related situational judgment items." };
   }
 
@@ -743,6 +812,126 @@ function buildVisualizationInsights(profile, messages) {
     timeline: buildRiskTimeline(messages, profile?.risk_score ?? state.risk),
     loop: buildLoopSnapshot(state, nextAction),
   };
+}
+
+function buildParticipantResearch(profile, messages, agentic = buildAgenticInsights(profile, messages)) {
+  const relevance = assessConsumptionRelevance(messages);
+  const userMessages = messages.filter((item) => item.role === "user");
+  const assistantMessages = messages.filter((item) => item.role === "assistant");
+  const scenarioAnswerCount = countScenarioAnswerMessages(userMessages);
+  const activeSignals = uniqueCodes(
+    userMessages.flatMap((item) => detectSignalCodes(item.content)).filter((code) => code !== "baseline"),
+  );
+  const evidenceCount = cleanList(profile?.evidence).length;
+  const hasProfile = Boolean(profile);
+  const hasRisk = profile?.risk_score !== null && profile?.risk_score !== undefined;
+  const completion = clampNumber(
+    userMessages.length * 11
+      + scenarioAnswerCount * 17
+      + activeSignals.length * 8
+      + evidenceCount * 5
+      + (hasRisk ? 18 : 0),
+    0,
+    100,
+  );
+  const stage = determineParticipantStage({
+    relevance,
+    userTurns: userMessages.length,
+    scenarioAnswerCount,
+    hasProfile,
+    hasRisk,
+    signalCoverage: activeSignals.length,
+    evidenceCount,
+  });
+  const evidenceLevel = determineEvidenceLevel(completion);
+  const notes = uniqueCodes([
+    relevance.status === "insufficient" ? "insufficient_evidence" : "",
+    scenarioAnswerCount === 0 ? "needs_scenario_answers" : "",
+    activeSignals.includes("discount") ? "promotion_trigger_present" : "",
+    activeSignals.includes("emotion") ? "emotion_trigger_present" : "",
+    activeSignals.includes("social") ? "social_trigger_present" : "",
+    evidenceCount >= 3 ? "profile_consistent" : "",
+    completion >= 70 ? "longitudinal_ready" : "",
+  ]).slice(0, 4);
+
+  return {
+    stage,
+    evidenceLevel,
+    completion,
+    userTurns: userMessages.length,
+    assistantTurns: assistantMessages.length,
+    scenarioAnswerCount,
+    signalCoverage: activeSignals.length,
+    activeSignals: activeSignals.slice(0, 6),
+    lastActivityAt: messages.at(-1)?.created_at || null,
+    profileUpdatedAt: null,
+    exportReady: completion >= 55 && hasProfile,
+    nextAction: agentic.nextAction || "scenario_probe",
+    notes,
+  };
+}
+
+function buildStudyMeta(totals, participant, updatedAt) {
+  return {
+    protocolId: "AI-ISP-SJT-2026.06",
+    protocolVersion: "v2.1",
+    design: "scenario_judgment_agentic_loop",
+    sessionStage: participant.stage,
+    evidenceLevel: participant.evidenceLevel,
+    participantCount: Number(totals?.total_users || 0),
+    profiledParticipants: Number(totals?.profiled_users || 0),
+    totalMessages: Number(totals?.total_messages || 0),
+    highRiskParticipants: Number(totals?.high_risk_users || 0),
+    sharedFeatureCount: Number(totals?.shared_feature_rows || 0),
+    lastUpdatedAt: updatedAt || totals?.latest_profile_at || null,
+    exportReady: participant.exportReady,
+  };
+}
+
+function buildMethodologyOverview() {
+  return {
+    protocol: [
+      "scenario_judgment_items",
+      "compact_response_coding",
+      "stateful_agent_loop",
+      "longitudinal_profile_refresh",
+    ],
+    measures: [
+      "promotion_pressure",
+      "emotion_pull",
+      "social_influence",
+      "reflective_control",
+    ],
+    outputs: [
+      "participant_profile",
+      "theory_trace",
+      "risk_trajectory",
+      "group_pattern_aggregation",
+    ],
+    safeguards: [
+      "non_diagnostic_use",
+      "profile_persistence_after_reset",
+      "distinct_user_normalization",
+    ],
+  };
+}
+
+function countScenarioAnswerMessages(messages) {
+  return messages.filter((item) => SCENARIO_COMPACT_ANSWER_PATTERN.test(String(item.content || "").trim())).length;
+}
+
+function determineParticipantStage({ relevance, userTurns, scenarioAnswerCount, hasProfile, hasRisk, signalCoverage, evidenceCount }) {
+  if (!userTurns) return "screening";
+  if (relevance.status === "insufficient" && userTurns < 2) return "screening";
+  if (!hasProfile || !hasRisk) return scenarioAnswerCount > 0 ? "elicitation" : "screening";
+  if (scenarioAnswerCount >= 1 && signalCoverage >= 2 && evidenceCount >= 2) return "stabilized";
+  return "profiling";
+}
+
+function determineEvidenceLevel(completion) {
+  if (completion >= 70) return "high";
+  if (completion >= 40) return "medium";
+  return "low";
 }
 
 function deriveBehaviorState(profile, messages, relevance = assessConsumptionRelevance(messages)) {
@@ -1261,7 +1450,7 @@ async function getRecentMessages(env, userId, limit) {
 
 async function requireAdmin(request, env) {
   const user = await requireUser(request, env);
-  if (user.id !== ADMIN_ID) throw httpError("需要管理员权限", 403);
+  if (!isAdminId(user.id, env)) throw httpError("需要管理员权限", 403);
   return user;
 }
 
@@ -1281,7 +1470,8 @@ async function requireUser(request, env) {
 }
 
 async function ensureAdminUser(env) {
-  const passwordHash = await hashPassword(ADMIN_PASSWORD, ADMIN_SALT);
+  const admin = getAdminConfig(env);
+  const passwordHash = await hashPassword(admin.password, admin.salt);
   const now = new Date().toISOString();
   await env.db.prepare(
     `INSERT INTO users (id, password_hash, salt, created_at, last_login_at)
@@ -1290,8 +1480,20 @@ async function ensureAdminUser(env) {
        password_hash = excluded.password_hash,
        salt = excluded.salt`,
   )
-    .bind(ADMIN_ID, passwordHash, ADMIN_SALT, now, now)
+    .bind(admin.id, passwordHash, admin.salt, now, now)
     .run();
+}
+
+function getAdminConfig(env) {
+  return {
+    id: normalizeUserId(env.ADMIN_ID) || DEFAULT_ADMIN_ID,
+    password: String(env.ADMIN_PASSWORD || DEFAULT_ADMIN_PASSWORD),
+    salt: String(env.ADMIN_SALT || DEFAULT_ADMIN_SALT),
+  };
+}
+
+function isAdminId(userId, env) {
+  return Boolean(userId) && String(userId) === getAdminConfig(env).id;
 }
 
 async function createSession(env, userId) {
@@ -1326,12 +1528,12 @@ async function readJson(request) {
   }
 }
 
-function publicUser(user) {
+function publicUser(user, env) {
   return {
     id: user.id,
     created_at: user.created_at || null,
     last_login_at: user.last_login_at || null,
-    isAdmin: user.id === ADMIN_ID,
+    isAdmin: isAdminId(user.id, env),
   };
 }
 
