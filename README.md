@@ -184,3 +184,7 @@ npm run deploy
 ## Security and Privacy Notes
 
 This app stores chat content, AI API keys, and behavioral profiles. Before production use, add clear privacy notices, data export/deletion workflows, stronger admin credential management, rate limiting, abuse protection, and a stronger password policy.
+
+## License
+
+This project is licensed under the MIT License. See [LICENSE](LICENSE).
